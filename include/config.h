@@ -22,7 +22,7 @@
 // The credentials of your WiFi router and the name and key of your
 // Azure Storage Account have to be set in the file config_secret.h 
 
-#define SENDINTERVAL_MINUTES   5    // Sendinterval in minutes (10 is recommended), in this interval                                        
+#define SENDINTERVAL_MINUTES   0.2    // Sendinterval in minutes (10 is recommended), in this interval                                        
                                       // data are sent to the Cloud (is limited to be not below 1 second)
 
 #define SERIAL_PRINT 1                     // 1 = yes, 0 = no. Select if Serial.print messages are printed 
@@ -60,7 +60,7 @@
 
 #define ANALOG_SENSOR_READ_INTERVAL_SECONDS 2   // Analog sensors are read with this interval  (limited 1 to 14400)                                    
 
-#define WORK_WITH_WATCHDOG 1               // 1 = yes, 0 = no, Watchdog is used (1) or not used (0)
+#define WORK_WITH_WATCHDOG 0              // 1 = yes, 0 = no, Watchdog is used (1) or not used (0)
                                            // should be 1 for normal operation and 0 for testing
                                            
 #define REBOOT_AFTER_FAILED_UPLOAD 0       // 1 = yes, 0 = no

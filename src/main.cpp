@@ -42,6 +42,7 @@
 #include "DataContainerWio.h"
 #include "OnOffDataContainerWio.h"
 #include "OnOffSwitcherWio.h"
+#include "SoundSwitcher.h"
 #include "ImuManagerWio.h"
 #include "AnalogSensorMgr.h"
 
@@ -143,6 +144,8 @@ AnalogSensorMgr analogSensorMgr(MAGIC_NUMBER_INVALID);
 OnOffDataContainerWio onOffDataContainer;
 
 OnOffSwitcherWio onOffSwitcherWio;
+
+SoundSwitcher soundSwitcher;
  
 uint64_t loopCounter = 0;
 int insertCounterAnalogTable = 0;
@@ -1198,6 +1201,9 @@ void setup()
       }
     #endif
   }
+
+  soundSwitcher.begin(220, Hysteresis::Percent_10, 400);
+  soundSwitcher.SetActive();
   //**************************************************************
   onOffDataContainer.begin(DateTime(), OnOffTableName_1, OnOffTableName_2, OnOffTableName_3, OnOffTableName_4);
 
@@ -1570,7 +1576,15 @@ void loop()
       }    
      
   }
-
+  FeedResponse feedResult = soundSwitcher.feed();
+  if (feedResult.isValid && feedResult.hasToggled)
+  {
+    Serial.print("Has toggled, new state is: ");
+    Serial.println(feedResult.state == true ? "High" : "Low");
+    Serial.print("Average is: ");
+    Serial.println(feedResult.avValue);
+  }
+  
 
 
   
