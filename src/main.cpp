@@ -145,7 +145,22 @@ OnOffDataContainerWio onOffDataContainer;
 
 OnOffSwitcherWio onOffSwitcherWio;
 
-SoundSwitcher soundSwitcher;
+// For Adafruit Huzzah Esp32
+static const i2s_pin_config_t pin_config_Adafruit_Huzzah_Esp32 = {
+    .bck_io_num = 14,                   // BCKL
+    .ws_io_num = 15,                    // LRCL
+    .data_out_num = I2S_PIN_NO_CHANGE,  // not used (only for speakers)
+    .data_in_num = 32                   // DOUT
+};
+// For some other Esp32 board
+static const i2s_pin_config_t pin_config_Esp32_dev = {
+    .bck_io_num = 26,                   // BCKL
+    .ws_io_num = 25,                    // LRCL
+    .data_out_num = I2S_PIN_NO_CHANGE,  // not used (only for speakers)
+    .data_in_num = 22                   // DOUT
+};
+
+SoundSwitcher soundSwitcher(pin_config_Esp32_dev);
  
 uint64_t loopCounter = 0;
 int insertCounterAnalogTable = 0;
@@ -1202,7 +1217,7 @@ void setup()
     #endif
   }
 
-  soundSwitcher.begin(220, Hysteresis::Percent_10, 400);
+  soundSwitcher.begin(100, Hysteresis::Percent_10, 400);
   soundSwitcher.SetActive();
   //**************************************************************
   onOffDataContainer.begin(DateTime(), OnOffTableName_1, OnOffTableName_2, OnOffTableName_3, OnOffTableName_4);
@@ -1365,6 +1380,20 @@ void loop()
         onOffDataContainer.SetNewOnOffValue(0, state, dateTimeUTCNow, timeZoneOffsetUTC);
         onOffDataContainer.SetNewOnOffValue(1, !state, dateTimeUTCNow, timeZoneOffsetUTC);
       }
+
+      FeedResponse feedResult = soundSwitcher.feed();
+      if (feedResult.isValid && feedResult.hasToggled)
+      {
+          onOffDataContainer.SetNewOnOffValue(2, feedResult.state, dateTimeUTCNow, timeZoneOffsetUTC);
+          Serial.print("\r\nHas toggled, new state is: ");
+          Serial.println(feedResult.state == true ? "High" : "Low");
+          Serial.print("Average is: ");
+          Serial.println(feedResult.avValue);
+          Serial.println(feedResult.lowAvValue);
+          Serial.println(feedResult.highAvValue);
+          Serial.println();
+      }
+
 
       // Check if something is to do: send analog data ? send On/Off-Data ? Handle EndOfDay stuff ?
       if (dataContainer.hasToBeSent() || onOffDataContainer.One_hasToBeBeSent(localTime) || isLast15SecondsOfDay)
@@ -1576,15 +1605,19 @@ void loop()
       }    
      
   }
+  /*
   FeedResponse feedResult = soundSwitcher.feed();
   if (feedResult.isValid && feedResult.hasToggled)
   {
-    Serial.print("Has toggled, new state is: ");
+    Serial.print("\r\nHas toggled, new state is: ");
     Serial.println(feedResult.state == true ? "High" : "Low");
     Serial.print("Average is: ");
     Serial.println(feedResult.avValue);
+    Serial.println(feedResult.lowAvValue);
+    Serial.println(feedResult.highAvValue);
+    Serial.println();
   }
-  
+  */
 
 
   

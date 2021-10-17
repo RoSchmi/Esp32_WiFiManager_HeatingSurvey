@@ -5,8 +5,7 @@
 //DateTime  lastSwitchTime = DateTime();
 //TimeSpan  switchInterval = TimeSpan(60);
 
-uint32_t lastFeedTimeMillis = millis();
-size_t feedIntervalMs = 100;
+
 
 static const i2s_port_t i2s_num = I2S_NUM_0; // i2s port number
 static const i2s_config_t i2s_config = {
@@ -32,18 +31,19 @@ static const i2s_pin_config_t pin_config = {
 */
 
 // For some other Esp32 board
- 
+/*
 static const i2s_pin_config_t pin_config = {
     .bck_io_num = 26,                   // BCKL
     .ws_io_num = 25,                    // LRCL
     .data_out_num = I2S_PIN_NO_CHANGE,  // not used (only for speakers)
     .data_in_num = 22                   // DOUT
 };
+*/
 
-
-
-SoundSwitcher::SoundSwitcher()
-{}
+SoundSwitcher::SoundSwitcher(i2s_pin_config_t config)
+{
+    pin_config = config;
+}
 
 void SoundSwitcher::begin(uint16_t switchThreshold, Hysteresis pHysteresis, uint32_t updateIntervalMs)
 { 
@@ -53,6 +53,7 @@ void SoundSwitcher::begin(uint16_t switchThreshold, Hysteresis pHysteresis, uint
   i2s_set_pin(i2s_num, &pin_config);
   
   lastFeedTimeMillis = millis();
+  lastBorderNarrowTimeMillis = millis();
   feedIntervalMs = updateIntervalMs;
   threshold = (float)switchThreshold;
   hysteresis = pHysteresis;
@@ -92,9 +93,7 @@ bool SoundSwitcher::hasToggled()
 }
 
 FeedResponse SoundSwitcher::feed()
-{ 
-     // FeedResponse feedResponse = {false, false, false, (float)0, (float)0, (float)0};
-    
+{     
      FeedResponse feedResponse;
      feedResponse.isValid = false;
      feedResponse.hasToggled = false;
@@ -103,17 +102,6 @@ FeedResponse SoundSwitcher::feed()
      feedResponse.lowAvValue = 0.0;
      feedResponse.highAvValue = 0.0;
 
-    
-    /*
-    FeedResponse feedResponse {
-        .isValid : false, 
-    .hasToggled = false, 
-    .state = false, 
-    .avValue = 0.0, 
-    .lowAvValue = 0.0,
-    .highAvValue = 0.0
-    };
-    */
     if (isActive)
     {
         if (millis() - lastFeedTimeMillis > feedIntervalMs)
@@ -162,12 +150,23 @@ FeedResponse SoundSwitcher::feed()
                     }
                     
                 }
+                lowAvBorder = average < lowAvBorder ? average : lowAvBorder;
+                highAvBorder = average > highAvBorder ? average : highAvBorder;
+
+                // every 30 minutes narrow range between low and high boarder
+                if (millis()- lastBorderNarrowTimeMillis > (30 * 60 * 1000))
+                {
+                    lastBorderNarrowTimeMillis = millis();
+                    float spanPercent = (highAvBorder - lowAvBorder) / 100;
+                    lowAvBorder += spanPercent;
+                    highAvBorder -= spanPercent; 
+                }
                 feedResponse.isValid = true;
                 feedResponse.hasToggled = hasSwitched;
                 feedResponse.state = state;
                 feedResponse.avValue = average;
-                feedResponse.lowAvValue = 0.0;
-                feedResponse.highAvValue = 0.0;
+                feedResponse.lowAvValue = lowAvBorder;
+                feedResponse.highAvValue = highAvBorder;
 
             }
         }       

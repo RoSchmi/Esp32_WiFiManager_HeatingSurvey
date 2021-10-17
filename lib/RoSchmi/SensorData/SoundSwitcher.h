@@ -41,7 +41,7 @@ class SoundSwitcher
 {
     
 public:
-    SoundSwitcher();
+    SoundSwitcher(i2s_pin_config_t config);
     
     void begin(uint16_t switchThreshold, Hysteresis hysteresis, uint32_t updateIntervalMs);
     FeedResponse feed();
@@ -52,7 +52,17 @@ public:
     bool GetState();
 
 private:
+
+     i2s_pin_config_t pin_config = {
+    .bck_io_num = 2,                   // BCKL
+    .ws_io_num = 2,                    // LRCL
+    .data_out_num = I2S_PIN_NO_CHANGE,  // not used (only for speakers)
+    .data_in_num = 2                  // DOUT
+};
     
+    uint32_t lastFeedTimeMillis = millis();
+    uint32_t lastBorderNarrowTimeMillis = millis();
+    size_t feedIntervalMs = 100;
     bool hasSwitched = false;
     float getSoundFromMicro();
     float soundVolume;
@@ -65,6 +75,8 @@ private:
     const static int buflen = 10;
     float volBuffer[buflen] {0.0};
     float average = 0;
+    float lowAvBorder = 10000;
+    float highAvBorder = 0;
 
     #define BUFLEN 256
 
