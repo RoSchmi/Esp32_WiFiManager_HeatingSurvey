@@ -69,6 +69,11 @@ bool DataContainerWio::hasToBeSent()
     return _hasToBeSent;
 }
 
+void DataContainerWio::setHasToBeSentFlag()
+{
+    _hasToBeSent = true;
+}
+
 SampleValueSet DataContainerWio::getSampleValues(DateTime pActDateTime)
 {
      _hasToBeSent = false;

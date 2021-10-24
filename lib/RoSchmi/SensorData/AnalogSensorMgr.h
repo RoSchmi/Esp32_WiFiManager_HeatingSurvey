@@ -13,7 +13,7 @@ typedef struct
     float  Value_2 = 999.9;
     float  Value_3 = 999.9;
     DateTime LastReadTime = DateTime();
-    TimeSpan ReadInterval = TimeSpan(2);  // default every 2 seconds
+    TimeSpan ReadInterval = TimeSpan(0,0,0,1);  // default every 2 seconds
     bool IsActive = true;
 }
 AnalogSensor;

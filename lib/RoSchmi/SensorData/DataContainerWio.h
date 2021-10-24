@@ -33,6 +33,7 @@ public:
     void SetNewValue(uint32_t pIndex, DateTime pActDateTime, float pSampleValue);
     SampleValueSet getCheckedSampleValues(DateTime pActDateTime);
     SampleValueSet getSampleValues(DateTime pActDateTime);
+    void setHasToBeSentFlag();
     bool hasToBeSent();
     void setLowerLimit(float pLowerLimit);
     void setUpperLimit(float pUpperLimit);

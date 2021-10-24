@@ -139,7 +139,8 @@ int sendIntervalSeconds = (SENDINTERVAL_MINUTES * 60) < 1 ? 1 : (SENDINTERVAL_MI
 
 DataContainerWio dataContainer(TimeSpan(sendIntervalSeconds), TimeSpan(0, 0, INVALIDATEINTERVAL_MINUTES % 60, 0), (float)MIN_DATAVALUE, (float)MAX_DATAVALUE, (float)MAGIC_NUMBER_INVALID);
 
-AnalogSensorMgr analogSensorMgr(MAGIC_NUMBER_INVALID); 
+AnalogSensorMgr analogSensorMgr(MAGIC_NUMBER_INVALID);
+
 
 OnOffDataContainerWio onOffDataContainer;
 
@@ -161,6 +162,10 @@ static const i2s_pin_config_t pin_config_Esp32_dev = {
 };
 
 SoundSwitcher soundSwitcher(pin_config_Esp32_dev);
+
+FeedResponse feedResult;
+
+int switchThreshold = 100;
  
 uint64_t loopCounter = 0;
 int insertCounterAnalogTable = 0;
@@ -1216,8 +1221,8 @@ void setup()
       }
     #endif
   }
-
-  soundSwitcher.begin(100, Hysteresis::Percent_10, 400);
+  
+  soundSwitcher.begin(switchThreshold, Hysteresis::Percent_10, 400);
   soundSwitcher.SetActive();
   //**************************************************************
   onOffDataContainer.begin(DateTime(), OnOffTableName_1, OnOffTableName_2, OnOffTableName_3, OnOffTableName_4);
@@ -1324,6 +1329,8 @@ void setup()
                                         localTime.hour() , localTime.minute());
   Serial.println("");
 
+  analogSensorMgr.SetReadInterval(ANALOG_SENSOR_READ_INTERVAL_SECONDS);
+
 }
 
 void loop()
@@ -1366,11 +1373,14 @@ void loop()
       // In the last 15 sec of each day we set a pulse to Off-State when we had On-State before
       bool isLast15SecondsOfDay = (localTime.hour() == 23 && localTime.minute() == 59 &&  localTime.second() > 45) ? true : false;
       
-      // Get readings from 4 differend analog sensors and store the values in a container
+      // Get readings from 4 differend analog sensors and store the values in a container     
+       
       dataContainer.SetNewValue(0, dateTimeUTCNow, ReadAnalogSensor(0));
       dataContainer.SetNewValue(1, dateTimeUTCNow, ReadAnalogSensor(1));
       dataContainer.SetNewValue(2, dateTimeUTCNow, ReadAnalogSensor(2));
       dataContainer.SetNewValue(3, dateTimeUTCNow, ReadAnalogSensor(3));
+
+      
 
       // Check if automatic OnOfSwitcher has toggled (used to simulate on/off changes)
       // and accordingly change the state of one representation (here index 0 and 1) in onOffDataContainer
@@ -1379,21 +1389,29 @@ void loop()
         bool state = onOffSwitcherWio.GetState();
         onOffDataContainer.SetNewOnOffValue(0, state, dateTimeUTCNow, timeZoneOffsetUTC);
         onOffDataContainer.SetNewOnOffValue(1, !state, dateTimeUTCNow, timeZoneOffsetUTC);
+        
+        
+        
       }
+        
+        
+        if (feedResult.isValid && feedResult.hasToggled)
+        {
+            onOffDataContainer.SetNewOnOffValue(2, feedResult.state, dateTimeUTCNow, timeZoneOffsetUTC);
+            // if toogled activate make hasToBeSent flag
+            // so that the analog values have to be updated in the cloud
+            dataContainer.setHasToBeSentFlag();
 
-      FeedResponse feedResult = soundSwitcher.feed();
-      if (feedResult.isValid && feedResult.hasToggled)
-      {
-          onOffDataContainer.SetNewOnOffValue(2, feedResult.state, dateTimeUTCNow, timeZoneOffsetUTC);
-          Serial.print("\r\nHas toggled, new state is: ");
-          Serial.println(feedResult.state == true ? "High" : "Low");
-          Serial.print("Average is: ");
-          Serial.println(feedResult.avValue);
-          Serial.println(feedResult.lowAvValue);
-          Serial.println(feedResult.highAvValue);
-          Serial.println();
-      }
-
+            Serial.print("\r\nHas toggled, new state is: ");
+            Serial.println(feedResult.state == true ? "High" : "Low");
+            Serial.print("Average is: ");
+            Serial.println(feedResult.avValue);
+            Serial.println(feedResult.lowAvValue);
+            Serial.println(feedResult.highAvValue);
+            Serial.println();
+        }
+        
+      
 
       // Check if something is to do: send analog data ? send On/Off-Data ? Handle EndOfDay stuff ?
       if (dataContainer.hasToBeSent() || onOffDataContainer.One_hasToBeBeSent(localTime) || isLast15SecondsOfDay)
@@ -1443,9 +1461,7 @@ void loop()
              
              //SCB_AIRCR = 0x05FA0004;             
             }                     
-          }
-          
-
+          }         
           // Create an Array of (here) 5 Properties
           // Each Property consists of the Name, the Value and the Type (here only Edm.String is supported)
 
@@ -1484,9 +1500,9 @@ void loop()
           __unused az_http_status_code insertResult =  insertTableEntity(myCloudStorageAccountPtr, myX509Certificate, (char *)augmentedAnalogTableName.c_str(), analogTableEntity, (char *)EtagBuffer);
                  
         }
-        else     // Task to do was not send analog table, so it is Send On/Off values or End of day stuff?
-        {
-        
+        // Now test if Send On/Off values or End of day stuff?
+        if (onOffDataContainer.One_hasToBeBeSent(localTime) || isLast15SecondsOfDay)
+        {        
           OnOffSampleValueSet onOffValueSet = onOffDataContainer.GetOnOffValueSet();
 
           for (int i = 0; i < 4; i++)    // Do for 4 OnOff-Tables  
@@ -1499,13 +1515,15 @@ void loop()
 
             if (onOffValueSet.OnOffSampleValues[i].hasToBeSent || ((onOffValueSet.OnOffSampleValues[i].actState == true) &&  (lastSwitchTimeDate.operator!=(actTimeDate))))
             {
-              onOffDataContainer.Reset_hasToBeSent(i);     
-              EntityProperty OnOffPropertiesArray[5];
+              if (onOffValueSet.OnOffSampleValues[i].hasToBeSent)
+              {
+                onOffDataContainer.Reset_hasToBeSent(i);     
+                EntityProperty OnOffPropertiesArray[5];
 
-               // RoSchmi
-               TimeSpan  onTime = onOffValueSet.OnOffSampleValues[i].OnTimeDay;
-               if (lastSwitchTimeDate.operator!=(actTimeDate))
-               {
+                // RoSchmi
+                TimeSpan  onTime = onOffValueSet.OnOffSampleValues[i].OnTimeDay;
+                if (lastSwitchTimeDate.operator!=(actTimeDate))
+                {
                   onTime = TimeSpan(0);                 
                   onOffDataContainer.Set_OnTimeDay(i, onTime);
 
@@ -1513,7 +1531,7 @@ void loop()
                   {
                     onOffDataContainer.Set_LastSwitchTime(i, actTimeDate);
                   }
-               }
+                }
                           
               char OnTimeDay[15] = {0};
               sprintf(OnTimeDay, "%03i-%02i:%02i:%02i", onTime.days(), onTime.hours(), onTime.minutes(), onTime.seconds());
@@ -1574,19 +1592,19 @@ void loop()
               
               delay(1000);     // wait at least 1 sec so that two uploads cannot have the same RowKey
 
-              break;          // Send only one in each round of loop 
-            }
-            else
-            {
-              if (isLast15SecondsOfDay && !onOffValueSet.OnOffSampleValues[i].dayIsLocked)
+              break;          // Send only one in each round of loop
+              }
+              else
               {
-                if (onOffValueSet.OnOffSampleValues[i].actState == true)              
-                {               
-                   onOffDataContainer.Set_ResetToOnIsNeededFlag(i, true);                 
-                   onOffDataContainer.SetNewOnOffValue(i, onOffValueSet.OnOffSampleValues[i].inputInverter ? true : false, dateTimeUTCNow, timeZoneOffsetUTC);
-                   delay(1000);   // because we don't want to send twice in the same second 
-                  break;
-                }
+                if (isLast15SecondsOfDay && !onOffValueSet.OnOffSampleValues[i].dayIsLocked)
+                {
+                  if (onOffValueSet.OnOffSampleValues[i].actState == true)              
+                  {               
+                    onOffDataContainer.Set_ResetToOnIsNeededFlag(i, true);                 
+                    onOffDataContainer.SetNewOnOffValue(i, onOffValueSet.OnOffSampleValues[i].inputInverter ? true : false, dateTimeUTCNow, timeZoneOffsetUTC);
+                    delay(1000);   // because we don't want to send twice in the same second 
+                    break;
+                  }
                 else
                 {              
                   if (onOffValueSet.OnOffSampleValues[i].resetToOnIsNeeded)
@@ -1598,7 +1616,9 @@ void loop()
                   }                 
                 }              
               }
-            }              
+              } 
+            }
+                          
           }
           
         } 
@@ -1781,92 +1801,65 @@ float ReadAnalogSensor(int pSensorIndex)
               {
                 case 0:
                     {
-                        float temp_hum_val[2] = {0};
-                        if (true)
-                        //if (!dht.readTempAndHumidity(temp_hum_val))
+                      feedResult = soundSwitcher.feed();
+                      if (feedResult.isValid)  
+                      {
+                        float soundValues[2] = {0};
+                        soundValues[0] = feedResult.avValue;
+                        soundValues[1] = feedResult.highAvValue;
+                        analogSensorMgr.SetReadTimeAndValues(pSensorIndex, dateTimeUTCNow, soundValues[1], soundValues[0], MAGIC_NUMBER_INVALID);
+                        
+                        theRead = feedResult.highAvValue / 10;
+                        // Take theRead (nearly) 0.0 as invalid
+                        // (if no sensor is connected the function returns 0)                        
+                        if (theRead > - 0.00001 && theRead < 0.00001)
                         {
-                            analogSensorMgr.SetReadTimeAndValues(pSensorIndex, dateTimeUTCNow, temp_hum_val[1], temp_hum_val[0], MAGIC_NUMBER_INVALID);
-                            
-                            theRead = temp_hum_val[1];
-                            // Take theRead (nearly) 0.0 as invalid
-                            // (if no sensor is connected the function returns 0)                        
-                            if (!(theRead > - 0.00001 && theRead < 0.00001))
-                            {      
-                                theRead += SENSOR_1_OFFSET;                                                       
-                            }
-                            else
-                            {
-                              theRead = MAGIC_NUMBER_INVALID;
-                            }                            
-                        }                                                           
+                          theRead = MAGIC_NUMBER_INVALID;
+                        }
+
+                      }                                                                               
                     }
                     break;
 
                 case 1:
                     {
-                      // Here we look if the temperature sensor was updated in this loop
-                      // If yes, we can get the measured humidity value from the index 0 sensor
-                      AnalogSensor tempSensor = analogSensorMgr.GetSensorDates(0);
-                      if (tempSensor.LastReadTime.operator==(dateTimeUTCNow))
+                      if (feedResult.isValid)  
                       {
-                          analogSensorMgr.SetReadTimeAndValues(pSensorIndex, dateTimeUTCNow, tempSensor.Value_1, tempSensor.Value_2, MAGIC_NUMBER_INVALID);
-                          theRead = tempSensor.Value_2;
+                        float soundValues[2] = {0};
+                        soundValues[0] = feedResult.avValue;
+                        soundValues[1] = feedResult.highAvValue;
+                        
+                        // Here we look if the sound sensor was updated in this loop
+                        // If yes, we can get the average value from the index 0 sensor
+                        AnalogSensor tempSensor = analogSensorMgr.GetSensorDates(0);
+                        if (tempSensor.LastReadTime.operator==(dateTimeUTCNow))
+                        {
+                          analogSensorMgr.SetReadTimeAndValues(pSensorIndex, dateTimeUTCNow, soundValues[1], soundValues[0], MAGIC_NUMBER_INVALID);
+                          theRead = feedResult.avValue / 10;
                             // Take theRead (nearly) 0.0 as invalid
                             // (if no sensor is connected the function returns 0)                        
-                            if (!(theRead > - 0.00001 && theRead < 0.00001))
+                            if ((theRead > - 0.00001 && theRead < 0.00001))
                             {      
-                                theRead += SENSOR_2_OFFSET;                                                       
+                                  theRead = MAGIC_NUMBER_INVALID;                                                  
                             }
-                            else
-                            {
-                              theRead = MAGIC_NUMBER_INVALID;
-                            }                          
+                        }                             
                       }                
                     }
                     break;
                 case 2:
-                    {
-                        // Here we do not send a sensor value but the state of the upload counter
-                        // Upload counter, limited to max. value of 1399
-                        //theRead = (insertCounterAnalogTable % 1399) / 10.0 ;
-
-                        // Alternative                  
-                        
-                        // Read the light sensor (not used here, collumn is used as upload counter)
-                        //theRead = analogRead(WIO_LIGHT);
-                        theRead = 20.0; // dummy
-                        theRead = map(theRead, 0, 1023, 0, 100);
-                        theRead = theRead < 0 ? 0 : theRead > 100 ? 100 : theRead;
-                                                                    
+                    {                   
+                        uint32_t showInsertCounter = insertCounterAnalogTable % 50;               
+                        double theRead = ((double)showInsertCounter) / 10;
+                        return theRead;                                                                   
                     }
                     break;
                 case 3:
-                    /*                
                     {
-                        // Here we do not send a sensor value but the last reset cause
-                        // Read the last reset cause for dignostic purpose 
-                        theRead = lastResetCause;                        
-                    }
-                    */
-
-                    // Read the accelerometer (not used here)
-                    // First experiments, don't work well
-                    /*
-                    {
-                        ImuSampleValues sampleValues;
-                        sampleValues.X_Read = lis.getAccelerationX();
-                        sampleValues.Y_Read = lis.getAccelerationY();
-                        sampleValues.Z_Read = lis.getAccelerationZ();
-                        imuManagerWio.SetNewImuReadings(sampleValues);
-                        theRead = imuManagerWio.GetVibrationValue();                                                                 
-                    }
-                    */
-                    theRead = 10.0; // dummy
-                     
-                    
+                      theRead = switchThreshold / 10; // dummy
+                    }                   
                     break;
               }
-            }          
+            }                    
             return theRead ;
 #endif
 
