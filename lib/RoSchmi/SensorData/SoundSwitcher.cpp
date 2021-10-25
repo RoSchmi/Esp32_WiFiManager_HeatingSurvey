@@ -45,7 +45,7 @@ SoundSwitcher::SoundSwitcher(i2s_pin_config_t config)
     pin_config = config;
 }
 
-void SoundSwitcher::begin(uint16_t switchThreshold, Hysteresis pHysteresis, uint32_t updateIntervalMs)
+void SoundSwitcher::begin(uint16_t switchThreshold, Hysteresis pHysteresis, uint32_t updateIntervalMs, uint32_t delayTimeMs)
 { 
   i2s_driver_install(i2s_num, &i2s_config, 0, NULL);   //install and start i2s driver
   REG_SET_BIT(  I2S_TIMING_REG(i2s_num),BIT(9));   /*  #include "soc/i2s_reg.h"   I2S_NUM -> 0 or 1*/
@@ -57,6 +57,7 @@ void SoundSwitcher::begin(uint16_t switchThreshold, Hysteresis pHysteresis, uint
   feedIntervalMs = updateIntervalMs;
   threshold = (float)switchThreshold;
   hysteresis = pHysteresis;
+  readDelayTimeMs = delayTimeMs;
   /*
   if (pHysteresis == Hysteresis::Percent_20)
   {
@@ -97,6 +98,7 @@ FeedResponse SoundSwitcher::feed()
      FeedResponse feedResponse;
      feedResponse.isValid = false;
      feedResponse.hasToggled = false;
+     feedResponse.analogToSend = false;
      feedResponse.state = false;
      feedResponse.avValue = 0.0;
      feedResponse.lowAvValue = 0.0;
@@ -136,7 +138,9 @@ FeedResponse SoundSwitcher::feed()
                 {
                     if (average > threshold)
                     {
-                        hasSwitched = true;                       
+                        hasSwitched = true;
+                        lastSwitchTimeMillis = millis();
+                        analogSendIsPending = true;                                             
                         state = true;
                     }
                     
@@ -146,6 +150,8 @@ FeedResponse SoundSwitcher::feed()
                     if (average < threshold - threshold / 100 * hysteresis)
                     {
                         hasSwitched = true;
+                        lastSwitchTimeMillis = millis();
+                        analogSendIsPending = true;                         
                         state = false;
                     }
                     
@@ -163,6 +169,16 @@ FeedResponse SoundSwitcher::feed()
                 }
                 feedResponse.isValid = true;
                 feedResponse.hasToggled = hasSwitched;
+                // RoSchmi to do
+                if (analogSendIsPending)
+                {
+                    if (millis() - lastSwitchTimeMillis >= readDelayTimeMs)
+                    {
+                        feedResponse.analogToSend = true;
+                        analogSendIsPending = false;
+                    }    
+                }
+                
                 feedResponse.state = state;
                 feedResponse.avValue = average;
                 feedResponse.lowAvValue = lowAvBorder;

@@ -1,4 +1,15 @@
+// Program 'Esp32_WiFiManager_HeatingSurvey'
+// Copyright: RoSchmi 2021, License: Apache 2.0
 
+// This App for Esp 32 monitors the activity of the burner of an oil-heating
+// (or any other noisy thing) by measuring the sound of e.g. the heating burner 
+// using an Adafruit I2S microphone
+// The on/off states are transferred to the Cloud (Azure Storage Tables)
+// via WLAN and can be visulized graphically through the iPhone- or Android-App
+// Charts4Azure.
+// The WiFi Credentials can be entered via a Portal page which is provided for a minute
+// by the Esp 32 after powering up the device. After having entered the credentials
+// one time they stay permanently on the Esp32 and need not to be entered every time.
 
 // This App uses an adaption of the 'Async_ConfigOnStartup.ino' as WiFi Mangager
 // from: -https://github.com/khoih-prog/ESPAsync_WiFiManager 
@@ -6,13 +17,12 @@
 // -https://github.com/khoih-prog/ESPAsync_WiFiManager/tree/master/examples/Async_ConfigOnStartup
  
 
-//   The WiFiManager will open a configuration portal for 60 seconds when first powered up if the boards has stored WiFi Credentials.
-//   Otherwise, it'll stay indefinitely in ConfigPortal until getting WiFi Credentials and connecting to WiFi
+// The WiFiManager will open a configuration portal for 60 seconds when first powered up if the boards has stored WiFi Credentials.
+// Otherwise, it'll stay indefinitely in ConfigPortal until getting WiFi Credentials and connecting to WiFi
  
 #include <Arduino.h>
 #include <time.h>
 
-//#include "WiFiWebServer.h"
 #include "ESPAsyncWebServer.h"
 #include "defines.h"
 #include "config.h"
@@ -56,7 +66,7 @@
 
 #include "Rs_TimeNameHelper.h"
 
-// Default stack size of 8192 byte is not enough for this application.
+// Default Esp32 stack size of 8192 byte is not enough for this application.
 // --> configure stack size dynamically from code to 16384
 // https://community.platformio.org/t/esp32-stack-configuration-reloaded/20994/4
 // Patch: Replace C:\Users\thisUser\.platformio\packages\framework-arduinoespressif32\cores\esp32\main.cpp
@@ -165,8 +175,10 @@ SoundSwitcher soundSwitcher(pin_config_Esp32_dev);
 
 FeedResponse feedResult;
 
-int switchThreshold = 100;
- 
+int soundSwitcherThreshold = SOUNDSWITCHER_THRESHOLD;
+int soundSwitcherUpdateInterval = SOUNDSWITCHER_UPDATEINTERVAL;
+uint32_t soundSwitcherReadDelayTime = SOUNDSWITCHER_READ_DELAYTIME;
+
 uint64_t loopCounter = 0;
 int insertCounterAnalogTable = 0;
 uint32_t tryUploadCounter = 0;
@@ -1222,7 +1234,7 @@ void setup()
     #endif
   }
   
-  soundSwitcher.begin(switchThreshold, Hysteresis::Percent_10, 400);
+  soundSwitcher.begin(soundSwitcherThreshold, Hysteresis::Percent_10, soundSwitcherUpdateInterval, soundSwitcherReadDelayTime);
   soundSwitcher.SetActive();
   //**************************************************************
   onOffDataContainer.begin(DateTime(), OnOffTableName_1, OnOffTableName_2, OnOffTableName_3, OnOffTableName_4);
@@ -1388,27 +1400,33 @@ void loop()
       {
         bool state = onOffSwitcherWio.GetState();
         onOffDataContainer.SetNewOnOffValue(0, state, dateTimeUTCNow, timeZoneOffsetUTC);
-        onOffDataContainer.SetNewOnOffValue(1, !state, dateTimeUTCNow, timeZoneOffsetUTC);
-        
-        
-        
+        onOffDataContainer.SetNewOnOffValue(1, !state, dateTimeUTCNow, timeZoneOffsetUTC);    
       }
         
         
-        if (feedResult.isValid && feedResult.hasToggled)
+        if (feedResult.isValid && (feedResult.hasToggled || feedResult.analogToSend))
         {
-            onOffDataContainer.SetNewOnOffValue(2, feedResult.state, dateTimeUTCNow, timeZoneOffsetUTC);
+            if (feedResult.hasToggled)
+            {
+              onOffDataContainer.SetNewOnOffValue(2, feedResult.state, dateTimeUTCNow, timeZoneOffsetUTC);
+              Serial.print("\r\nHas toggled, new state is: ");
+              Serial.println(feedResult.state == true ? "High" : "Low");
+              Serial.println();
+            }
             // if toogled activate make hasToBeSent flag
             // so that the analog values have to be updated in the cloud
-            dataContainer.setHasToBeSentFlag();
+            if (feedResult.analogToSend)
+            {
+              dataContainer.setHasToBeSentFlag();
+              Serial.print("Average is: ");
+              Serial.println(feedResult.avValue);
+              Serial.println(feedResult.lowAvValue);
+              Serial.println(feedResult.highAvValue);
+              Serial.println();
+            }
 
-            Serial.print("\r\nHas toggled, new state is: ");
-            Serial.println(feedResult.state == true ? "High" : "Low");
-            Serial.print("Average is: ");
-            Serial.println(feedResult.avValue);
-            Serial.println(feedResult.lowAvValue);
-            Serial.println(feedResult.highAvValue);
-            Serial.println();
+            
+            
         }
         
       
@@ -1809,7 +1827,10 @@ float ReadAnalogSensor(int pSensorIndex)
                         soundValues[1] = feedResult.highAvValue;
                         analogSensorMgr.SetReadTimeAndValues(pSensorIndex, dateTimeUTCNow, soundValues[1], soundValues[0], MAGIC_NUMBER_INVALID);
                         
-                        theRead = feedResult.highAvValue / 10;
+                        //theRead = feedResult.highAvValue / 10;
+                        // Not used
+                        theRead = MAGIC_NUMBER_INVALID;
+
                         // Take theRead (nearly) 0.0 as invalid
                         // (if no sensor is connected the function returns 0)                        
                         if (theRead > - 0.00001 && theRead < 0.00001)
@@ -1836,6 +1857,8 @@ float ReadAnalogSensor(int pSensorIndex)
                         {
                           analogSensorMgr.SetReadTimeAndValues(pSensorIndex, dateTimeUTCNow, soundValues[1], soundValues[0], MAGIC_NUMBER_INVALID);
                           theRead = feedResult.avValue / 10;
+                          // is limited to be not more than 100
+                          theRead = theRead <= 100 ? theRead : 100.0;
                             // Take theRead (nearly) 0.0 as invalid
                             // (if no sensor is connected the function returns 0)                        
                             if ((theRead > - 0.00001 && theRead < 0.00001))
@@ -1847,15 +1870,15 @@ float ReadAnalogSensor(int pSensorIndex)
                     }
                     break;
                 case 2:
-                    {                   
-                        uint32_t showInsertCounter = insertCounterAnalogTable % 50;               
-                        double theRead = ((double)showInsertCounter) / 10;
+                    {                                                  
+                        theRead = ((double)(insertCounterAnalogTable % 50)) / 10;
                         return theRead;                                                                   
                     }
                     break;
                 case 3:
                     {
-                      theRead = switchThreshold / 10; // dummy
+                      // Line for the switch threshold
+                      theRead = soundSwitcherThreshold / 10; // dummy
                     }                   
                     break;
               }

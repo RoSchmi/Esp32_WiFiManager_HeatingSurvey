@@ -19,6 +19,7 @@ typedef struct
     {
         bool isValid = false;
         bool hasToggled = false;
+        bool analogToSend = false;    
         bool state = false;
         float avValue = 0.0;
         float lowAvValue = 100000;
@@ -43,7 +44,7 @@ class SoundSwitcher
 public:
     SoundSwitcher(i2s_pin_config_t config);
     
-    void begin(uint16_t switchThreshold, Hysteresis hysteresis, uint32_t updateIntervalMs);
+    void begin(uint16_t switchThreshold, Hysteresis hysteresis, uint32_t updateIntervalMs, uint32_t delayTimeMs);
     FeedResponse feed();
     AverageValue getAverage();
     void SetInactive();
@@ -61,9 +62,12 @@ private:
 };
     
     uint32_t lastFeedTimeMillis = millis();
+    uint32_t lastSwitchTimeMillis = millis();
+    uint32_t readDelayTimeMs = 0;
     uint32_t lastBorderNarrowTimeMillis = millis();
     size_t feedIntervalMs = 100;
     bool hasSwitched = false;
+    bool analogSendIsPending = false;
     float getSoundFromMicro();
     float soundVolume;
     float threshold;
