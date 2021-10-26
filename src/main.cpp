@@ -66,6 +66,9 @@
 
 #include "Rs_TimeNameHelper.h"
 
+// Now support ArduinoJson 6.0.0+ ( tested with v6.14.1 )
+#include <ArduinoJson.h>      // get it from https://arduinojson.org/ or install via Arduino library manager
+
 // Default Esp32 stack size of 8192 byte is not enough for this application.
 // --> configure stack size dynamically from code to 16384
 // https://community.platformio.org/t/esp32-stack-configuration-reloaded/20994/4
@@ -205,11 +208,21 @@ int32_t sysTimeNtpDelta = 0;
      // Set transport protocol as defined in config.h
 static bool UseHttps_State = TRANSPORT_PROTOCOL == 0 ? false : true;
 
-char azureAccountName[20] = AZURE_CONFIG_ACCOUNT_NAME;
-char azureAccountKey[90] = AZURE_CONFIG_ACCOUNT_KEY;
+char azureAccountName[20] =  AZURE_CONFIG_ACCOUNT_NAME;
+char azureAccountKey[90] =  AZURE_CONFIG_ACCOUNT_KEY;
+char soundSwitcherThresholdString[5] {0};
+
 
 #define AzureAccountName_Label "azureAccountName"
 #define AzureAccountKey_Label "azureAccountKey"
+#define SoundSwitcherThresholdString_Label "soundSwitcherThresholdString"
+
+/*
+#define ThingSpeakAPI_Label       "thingspeakApiKey"
+#define SensorDht22_Label         "SensorDHT22"
+#define PinSDA_Label              "PinSda"
+#define PinSCL_Label              "PinScl"
+*/
 
 // Function Prototypes
 
@@ -220,7 +233,7 @@ bool writeConfigFile();
 // saveConfigData
 
 
-//CloudStorageAccount myCloudStorageAccount(AZURE_CONFIG_ACCOUNT_NAME, AZURE_CONFIG_ACCOUNT_KEY, UseHttps_State);
+
 CloudStorageAccount myCloudStorageAccount(azureAccountName, azureAccountKey, UseHttps_State);
 CloudStorageAccount * myCloudStorageAccountPtr = &myCloudStorageAccount;
 
@@ -339,9 +352,11 @@ int getWeekOfMonthNum(const char * weekOfMonth);
 
 // SSID and PW for Config Portal
 //RoSchmi
-//String ssid = "ESP_" + String(ESP_getChipId(), HEX);
-String ssid = "ESP_Roland_01";
-const char* password = "your_password";
+String ssid = "ESP_" + String(ESP_getChipId(), HEX);
+//String ssid = "ESP_Roland_01";
+
+//const char* password = "your_password";
+String password;
 
 // SSID and PW for your Router
 String Router_SSID;
@@ -479,6 +494,11 @@ IPAddress APStaticSN  = IPAddress(255, 255, 255, 0);
 
 // Onboard LED I/O pin on NodeMCU board
 const int PIN_LED = 2; // D4 on NodeMCU and WeMos. GPIO2/ADC12 of ESP32. Controls the onboard LED.
+
+
+
+
+
 
 ///////////////////////////////////////////
 // New in v1.4.0
@@ -809,6 +829,9 @@ void saveConfigData()
 
   if (file)
   {
+    //RoSchmi
+    Serial.println("File exists");
+
     WM_config.checksum = calcChecksum( (uint8_t*) &WM_config, sizeof(WM_config) - sizeof(WM_config.checksum) );
     
     file.write((uint8_t*) &WM_config, sizeof(WM_config));
@@ -827,6 +850,134 @@ void saveConfigData()
     LOGERROR(F("failed"));
   }
 }
+
+bool readConfigFile()
+{
+  // this opens the config file in read-mode
+  File f = FileFS.open(CONFIG_FILENAME, "r");
+
+  if (!f)
+  {
+    Serial.println(F("Configuration file not found"));
+    return false;
+  }
+  else
+  {
+    // RoSchmi
+    Serial.println("we could open the file");
+    // we could open the file
+    size_t size = f.size();
+    // Allocate a buffer to store contents of the file.
+    std::unique_ptr<char[]> buf(new char[size + 1]);
+
+    // Read and store file contents in buf
+    f.readBytes(buf.get(), size);
+    // Closing file
+    f.close();
+    // Using dynamic JSON buffer which is not the recommended memory model, but anyway
+    // See https://github.com/bblanchon/ArduinoJson/wiki/Memory%20model
+
+#if (ARDUINOJSON_VERSION_MAJOR >= 6)
+    DynamicJsonDocument json(1024);
+    auto deserializeError = deserializeJson(json, buf.get());
+    if ( deserializeError )
+    {
+      Serial.println(F("JSON parseObject() failed"));
+      return false;
+    }
+    // RoSchmi
+    Serial.println(F("Parsing object successful: "));
+    serializeJson(json, Serial);
+#else
+    DynamicJsonBuffer jsonBuffer;
+    // Parse JSON string
+    JsonObject& json = jsonBuffer.parseObject(buf.get());
+    // Test if parsing succeeds.
+    if (!json.success())
+    {
+      Serial.println(F("JSON parseObject() failed"));
+      return false;
+    }
+    json.printTo(Serial);
+#endif
+
+    // Parse all config file parameters, override
+    // local config variables with parsed values
+    /*
+    if (json.containsKey(ThingSpeakAPI_Label))
+    {
+      strcpy(thingspeakApiKey, json[ThingSpeakAPI_Label]);
+    }
+    */
+    if (json.containsKey(AzureAccountName_Label))
+    {
+      strcpy(azureAccountName, json[AzureAccountName_Label]);
+      //RoSchmi
+      Serial.println("AcountName is:");
+      Serial.println((char *)azureAccountName);
+    }
+    if (json.containsKey(AzureAccountKey_Label))
+    {
+      strcpy(azureAccountKey, json[AzureAccountKey_Label]);    
+    }
+    if (json.containsKey(SoundSwitcherThresholdString_Label))
+    {
+      strcpy(soundSwitcherThresholdString, json[SoundSwitcherThresholdString_Label]);     
+    }
+  }
+  Serial.println(F("\nConfig file was successfully parsed"));
+  return true;
+}
+
+bool writeConfigFile()
+{
+  Serial.println(F("Saving config file"));
+
+#if (ARDUINOJSON_VERSION_MAJOR >= 6)
+  DynamicJsonDocument json(1024);
+#else
+  DynamicJsonBuffer jsonBuffer;
+  JsonObject& json = jsonBuffer.createObject();
+#endif
+
+  // JSONify local configuration parameters
+  /*
+  json[ThingSpeakAPI_Label] = thingspeakApiKey;
+  json[SensorDht22_Label] = sensorDht22;
+  json[PinSDA_Label] = pinSda;
+  json[PinSCL_Label] = pinScl;
+  */
+  json[AzureAccountName_Label] = azureAccountName;
+  json[AzureAccountKey_Label] = azureAccountKey;
+  json[SoundSwitcherThresholdString_Label] = soundSwitcherThresholdString;
+  // Open file for writing
+  //File f = FileFS.open(CONFIG_FILE, "w");
+  File f = FileFS.open(CONFIG_FILENAME, "w");
+  
+
+  if (!f)
+  {
+    Serial.println(F("Failed to open config file for writing"));
+    return false;
+  }
+
+#if (ARDUINOJSON_VERSION_MAJOR >= 6)
+  serializeJsonPretty(json, Serial);
+  // Write data to file and close it
+  serializeJson(json, f);
+#else
+  json.prettyPrintTo(Serial);
+  // Write data to file and close it
+  json.printTo(f);
+#endif
+
+  f.close();
+
+  Serial.println(F("\nConfig file was successfully saved"));
+  return true;
+}
+
+
 
 void setup()
 {
@@ -948,6 +1099,18 @@ void setup()
     Serial.print("Warning. Must use this example on Version later than : ");
     Serial.println(ESP_ASYNC_WIFIMANAGER_VERSION_MIN_TARGET);
   }
+  
+  // New RoSchmi
+
+  // Initialize the LED digital pin as an output.
+  pinMode(PIN_LED, OUTPUT);
+
+  // Initialize trigger pins
+  //pinMode(TRIGGER_PIN, INPUT_PULLUP);
+  //pinMode(TRIGGER_PIN2, INPUT_PULLUP);
+  
+  
+  // end new
 
   Serial.setDebugOutput(false);
 
@@ -991,6 +1154,12 @@ void setup()
   initAPIPConfigStruct(WM_AP_IPconfig);
   initSTAIPConfigStruct(WM_STA_IPconfig);
   //////
+
+  // RoSchmi
+  if (!readConfigFile())
+  {
+    Serial.println(F("Failed to read ConfigFile, using default values"));
+  }
 
   //Local intialization. Once its business is done, there is no need to keep it around
   // Use this to default DHCP hostname to ESP8266-XXXXXX or ESP32-XXXXXX
@@ -1040,6 +1209,35 @@ void setup()
 
   //Remove this line if you do not want to see WiFi password printed
   Serial.println("ESP Self-Stored: SSID = " + Router_SSID + ", Pass = " + Router_Pass);
+  
+  // RoSchmi new
+  // SSID to uppercase
+  ssid.toUpperCase();
+  password = "My" + ssid;
+
+  // RoSchmi end new
+
+// RoSchmi new
+  // Extra parameters to be configured
+  // After connecting, parameter.getValue() will get you the configured value
+  // Format: <ID> <Placeholder text> <default value> <length> <custom HTML> <label placement>
+  
+  // Thingspeak API Key - this is a straight forward string parameter
+    //ESPAsync_WMParameter p_thingspeakApiKey(ThingSpeakAPI_Label, "Thingspeak API Key", thingspeakApiKey, 17);
+    ESPAsync_WMParameter p_azureAccountName(AzureAccountName_Label, "Storage Account Name", azureAccountName, 20); 
+    ESPAsync_WMParameter p_azureAccountKey(AzureAccountKey_Label, "Storage Account Key", "", 90);
+    ESPAsync_WMParameter p_soundSwitcherThreshold(SoundSwitcherThresholdString_Label, "Threshold", soundSwitcherThresholdString, 5);
+  // Just a quick hint
+    ESPAsync_WMParameter p_hint("<small>*Hint: if you want to reuse the currently active WiFi credentials, leave SSID and Password fields empty</small>");
+
+    //add all parameters here
+
+    ESPAsync_wifiManager.addParameter(&p_hint);
+    ESPAsync_wifiManager.addParameter(&p_azureAccountName);
+    ESPAsync_wifiManager.addParameter(&p_azureAccountKey);
+    ESPAsync_wifiManager.addParameter(&p_soundSwitcherThreshold);
+
+
 
   //Check if there is stored WiFi router/password credentials.
   //If not found, device will remain in configuration mode until switched off via webserver.
@@ -1058,6 +1256,7 @@ void setup()
   }
   
   if (loadConfigData())
+  //if (readConfigFile())
   {
     configDataLoaded = true;
     
@@ -1108,7 +1307,7 @@ void setup()
   digitalWrite(LED_BUILTIN, LED_ON); // turn the LED on by making the voltage LOW to tell us we are in configuration mode.
 
   // Starts an access point
-  if (!ESPAsync_wifiManager.startConfigPortal((const char *) ssid.c_str(), password))
+  if (!ESPAsync_wifiManager.startConfigPortal((const char *) ssid.c_str(), (const char *)password.c_str()))
     Serial.println(F("Not connected to WiFi but continuing anyway."));
   else
   {
@@ -1181,7 +1380,24 @@ void setup()
     ESPAsync_wifiManager.getSTAStaticIPConfig(WM_STA_IPconfig);
     //////
     
+     //RoSchmi
+    Serial.println("\r\nSaving config Data!");
     saveConfigData();
+
+    // Getting posted form values and overriding local variables parameters
+    // Config file is written regardless the connection state
+    strcpy(azureAccountName, p_azureAccountName.getValue());
+    strcpy(azureAccountKey, p_azureAccountKey.getValue());
+    strcpy(soundSwitcherThresholdString, p_soundSwitcherThreshold.getValue());
+    //sensorDht22 = (strncmp(p_sensorDht22.getValue(), "T", 1) == 0);
+    //pinSda = atoi(p_pinSda.getValue());
+    //pinScl = atoi(p_pinScl.getValue());
+    // Writing JSON config file to flash for next boot
+    writeConfigFile();
+
+    //RoSchmi
+    //Serial.println("\r\nWriting config file!");
+    //writeConfigFile();
 
     initialConfig = true;
   }
@@ -1189,12 +1405,21 @@ void setup()
   digitalWrite(LED_BUILTIN, LED_OFF); // Turn led off as we are not in configuration mode.
 
   startedAt = millis();
-
+  /*
+  while (true)
+  {
+    Serial.println("Waiting");
+    delay(2000);
+  }
+  */
   if (!initialConfig)
   {
     // Load stored data, the addAP ready for MultiWiFi reconnection
     if (!configDataLoaded)
-      loadConfigData();
+    {
+      //loadConfigData();
+      readConfigFile();
+    }
 
     for (uint8_t i = 0; i < NUM_WIFI_CREDENTIALS; i++)
     {
@@ -1219,6 +1444,16 @@ void setup()
   Serial.print(F(" secs more in setup(), connection result is "));
   
   // RoSchmi
+
+  // Must be updated with values from WiFi-Manager
+  myCloudStorageAccount.AccountName = azureAccountName;
+  myCloudStorageAccount.AccountKey = azureAccountKey;
+  
+  
+
+
+  //CloudStorageAccount myCloudStorageAccount(azureAccountName, azureAccountKey, UseHttps_State);
+  //CloudStorageAccount * myCloudStorageAccountPtr = &myCloudStorageAccount;
 
   #if WORK_WITH_WATCHDOG == 1
     // Start watchdog with 20 seconds
@@ -1252,6 +1487,10 @@ void setup()
       }
     #endif
   }
+
+  Serial.println("\r\nUsed azure credentials");
+  Serial.println((char *)azureAccountName);
+  Serial.println((char *)azureAccountKey);
   
   soundSwitcher.begin(soundSwitcherThreshold, Hysteresis::Percent_10, soundSwitcherUpdateInterval, soundSwitcherReadDelayTime);
   soundSwitcher.SetActive();
