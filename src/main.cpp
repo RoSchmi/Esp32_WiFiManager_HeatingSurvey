@@ -119,6 +119,9 @@ const bool augmentTableNameWithYear = true;
 
 #define LED_BUILTIN 2
 
+
+
+
 //RoSchmi
 //const char *ssid = IOT_CONFIG_WIFI_SSID;
 //const char *password = IOT_CONFIG_WIFI_PASSWORD;
@@ -202,7 +205,23 @@ int32_t sysTimeNtpDelta = 0;
      // Set transport protocol as defined in config.h
 static bool UseHttps_State = TRANSPORT_PROTOCOL == 0 ? false : true;
 
-CloudStorageAccount myCloudStorageAccount(AZURE_CONFIG_ACCOUNT_NAME, AZURE_CONFIG_ACCOUNT_KEY, UseHttps_State);
+char azureAccountName[20] = AZURE_CONFIG_ACCOUNT_NAME;
+char azureAccountKey[90] = AZURE_CONFIG_ACCOUNT_KEY;
+
+#define AzureAccountName_Label "azureAccountName"
+#define AzureAccountKey_Label "azureAccountKey"
+
+// Function Prototypes
+
+bool readConfigFile();
+bool writeConfigFile();
+
+// loadConfigData
+// saveConfigData
+
+
+//CloudStorageAccount myCloudStorageAccount(AZURE_CONFIG_ACCOUNT_NAME, AZURE_CONFIG_ACCOUNT_KEY, UseHttps_State);
+CloudStorageAccount myCloudStorageAccount(azureAccountName, azureAccountKey, UseHttps_State);
 CloudStorageAccount * myCloudStorageAccountPtr = &myCloudStorageAccount;
 
 void GPIOPinISR()
