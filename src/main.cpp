@@ -181,7 +181,7 @@ SoundSwitcher soundSwitcher(pin_config_Esp32_dev);
 
 FeedResponse feedResult;
 
-int soundSwitcherThreshold = SOUNDSWITCHER_THRESHOLD;
+//int soundSwitcherThreshold = SOUNDSWITCHER_THRESHOLD;
 int soundSwitcherUpdateInterval = SOUNDSWITCHER_UPDATEINTERVAL;
 uint32_t soundSwitcherReadDelayTime = SOUNDSWITCHER_READ_DELAYTIME;
 
@@ -209,15 +209,15 @@ int32_t sysTimeNtpDelta = 0;
      // Set transport protocol as defined in config.h
 static bool UseHttps_State = TRANSPORT_PROTOCOL == 0 ? false : true;
 
-#define swThreshold "200"
+
 char azureAccountName[20] =  AZURE_CONFIG_ACCOUNT_NAME;
 char azureAccountKey[90] =  AZURE_CONFIG_ACCOUNT_KEY;
-char sSwiThreHoStr[6] = swThreshold;
+char sSwiThresholdStr[6] = SOUNDSWITCHER_THRESHOLD;
 
 
 #define AzureAccountName_Label "azureAccountName"
 #define AzureAccountKey_Label "azureAccountKey"
-#define SoundSwitcherThresholdString_Label "sSwiThreHoStr"
+#define SoundSwitcherThresholdString_Label "sSwiThresholdStr"
 
 /*
 #define ThingSpeakAPI_Label       "thingspeakApiKey"
@@ -924,7 +924,7 @@ bool readConfigFile()
     }
     if (json.containsKey(SoundSwitcherThresholdString_Label))
     {
-      strcpy(sSwiThreHoStr, json[SoundSwitcherThresholdString_Label]);     
+      strcpy(sSwiThresholdStr, json[SoundSwitcherThresholdString_Label]);      
     }
   }
   Serial.println(F("\nConfig file was successfully parsed"));
@@ -951,7 +951,7 @@ bool writeConfigFile()
   */
   json[AzureAccountName_Label] = azureAccountName;
   json[AzureAccountKey_Label] = azureAccountKey;
-  json[SoundSwitcherThresholdString_Label] = sSwiThreHoStr;
+  json[SoundSwitcherThresholdString_Label] = sSwiThresholdStr;
   // Open file for writing
   //File f = FileFS.open(CONFIG_FILE, "w");
   File f = FileFS.open(CONFIG_FILENAME, "w");
@@ -1162,6 +1162,9 @@ void setup()
   //////
 
   // RoSchmi
+
+  
+
   if (!readConfigFile())
   {
     Serial.println(F("Failed to read ConfigFile, using default values"));
@@ -1232,7 +1235,7 @@ void setup()
     //ESPAsync_WMParameter p_thingspeakApiKey(ThingSpeakAPI_Label, "Thingspeak API Key", thingspeakApiKey, 17);
     ESPAsync_WMParameter p_azureAccountName(AzureAccountName_Label, "Storage Account Name", azureAccountName, 20); 
     ESPAsync_WMParameter p_azureAccountKey(AzureAccountKey_Label, "Storage Account Key", "", 90);
-    ESPAsync_WMParameter p_soundSwitcherThreshold(SoundSwitcherThresholdString_Label, "Threshold", sSwiThreHoStr, 6);
+    ESPAsync_WMParameter p_soundSwitcherThreshold(SoundSwitcherThresholdString_Label, "Threshold", sSwiThresholdStr, 6);
   // Just a quick hint
     ESPAsync_WMParameter p_hint("<small>*Hint: if you want to reuse the currently active WiFi credentials, leave SSID and Password fields empty</small>");
 
@@ -1398,17 +1401,17 @@ void setup()
 
 
   // Getting posted form values and overriding local variables parameters
-    // Config file is written regardless the connection state
-    //strcpy(thingspeakApiKey, p_thingspeakApiKey.getValue());
-    strcpy(azureAccountName, p_azureAccountName.getValue());
+  // Config file is written regardless the connection state 
+  strcpy(azureAccountName, p_azureAccountName.getValue());
+  if (strlen(p_azureAccountKey.getValue()) > 1)
+  {
+    // RoSchmi 
+    Serial.println("Overwriting Azure Key");
     strcpy(azureAccountKey, p_azureAccountKey.getValue());
-    strcpy(sSwiThreHoStr, p_soundSwitcherThreshold.getValue());
-    //sensorDht22 = (strncmp(p_sensorDht22.getValue(), "T", 1) == 0);
-    //pinSda = atoi(p_pinSda.getValue());
-    //pinScl = atoi(p_pinScl.getValue());
+  }
+  strcpy(sSwiThresholdStr, p_soundSwitcherThreshold.getValue());
+    
     // Writing JSON config file to flash for next boot
-
-
 
   writeConfigFile();
 
@@ -1467,7 +1470,7 @@ void setup()
   Serial.println((char *)azureAccountName);
   Serial.println((char *)azureAccountKey);
   
-  soundSwitcher.begin(soundSwitcherThreshold, Hysteresis::Percent_10, soundSwitcherUpdateInterval, soundSwitcherReadDelayTime);
+  soundSwitcher.begin(atoi((char *)sSwiThresholdStr), Hysteresis::Percent_10, soundSwitcherUpdateInterval, soundSwitcherReadDelayTime);
   soundSwitcher.SetActive();
   //**************************************************************
   onOffDataContainer.begin(DateTime(), OnOffTableName_1, OnOffTableName_2, OnOffTableName_3, OnOffTableName_4);
@@ -2111,7 +2114,7 @@ float ReadAnalogSensor(int pSensorIndex)
                 case 3:
                     {
                       // Line for the switch threshold
-                      theRead = soundSwitcherThreshold / 10; // dummy
+                      theRead = atoi((char *)sSwiThresholdStr) / 10; // dummy
                     }                   
                     break;
               }
