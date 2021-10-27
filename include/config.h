@@ -22,7 +22,7 @@
 // The credentials of your WiFi router and the name and key of your
 // Azure Storage Account have to be set in the file config_secret.h 
 
-#define SOUNDSWITCHER_THRESHOLD 220         // The Threshold to toggle High/Low
+#define SOUNDSWITCHER_THRESHOLD 250         // The Threshold to toggle High/Low
 #define SOUNDSWITCHER_UPDATEINTERVAL 400    // Interval in ms for reading sound level
 #define SOUNDSWITCHER_READ_DELAYTIME 4000   // Delay in ms from switch to displayed value
 

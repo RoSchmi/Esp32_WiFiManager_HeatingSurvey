@@ -185,6 +185,7 @@ int soundSwitcherThreshold = SOUNDSWITCHER_THRESHOLD;
 int soundSwitcherUpdateInterval = SOUNDSWITCHER_UPDATEINTERVAL;
 uint32_t soundSwitcherReadDelayTime = SOUNDSWITCHER_READ_DELAYTIME;
 
+
 uint64_t loopCounter = 0;
 int insertCounterAnalogTable = 0;
 uint32_t tryUploadCounter = 0;
@@ -208,14 +209,15 @@ int32_t sysTimeNtpDelta = 0;
      // Set transport protocol as defined in config.h
 static bool UseHttps_State = TRANSPORT_PROTOCOL == 0 ? false : true;
 
+#define swThreshold "200"
 char azureAccountName[20] =  AZURE_CONFIG_ACCOUNT_NAME;
 char azureAccountKey[90] =  AZURE_CONFIG_ACCOUNT_KEY;
-char soundSwitcherThresholdString[5] {0};
+char sSwiThreHoStr[6] = swThreshold;
 
 
 #define AzureAccountName_Label "azureAccountName"
 #define AzureAccountKey_Label "azureAccountKey"
-#define SoundSwitcherThresholdString_Label "soundSwitcherThresholdString"
+#define SoundSwitcherThresholdString_Label "sSwiThreHoStr"
 
 /*
 #define ThingSpeakAPI_Label       "thingspeakApiKey"
@@ -922,7 +924,7 @@ bool readConfigFile()
     }
     if (json.containsKey(SoundSwitcherThresholdString_Label))
     {
-      strcpy(soundSwitcherThresholdString, json[SoundSwitcherThresholdString_Label]);     
+      strcpy(sSwiThreHoStr, json[SoundSwitcherThresholdString_Label]);     
     }
   }
   Serial.println(F("\nConfig file was successfully parsed"));
@@ -949,7 +951,7 @@ bool writeConfigFile()
   */
   json[AzureAccountName_Label] = azureAccountName;
   json[AzureAccountKey_Label] = azureAccountKey;
-  json[SoundSwitcherThresholdString_Label] = soundSwitcherThresholdString;
+  json[SoundSwitcherThresholdString_Label] = sSwiThreHoStr;
   // Open file for writing
   //File f = FileFS.open(CONFIG_FILE, "w");
   File f = FileFS.open(CONFIG_FILENAME, "w");
@@ -964,6 +966,10 @@ bool writeConfigFile()
 #if (ARDUINOJSON_VERSION_MAJOR >= 6)
   serializeJsonPretty(json, Serial);
   // Write data to file and close it
+
+  // RoSchmi
+  serializeJson(json, Serial);
+
   serializeJson(json, f);
 #else
   json.prettyPrintTo(Serial);
@@ -1226,7 +1232,7 @@ void setup()
     //ESPAsync_WMParameter p_thingspeakApiKey(ThingSpeakAPI_Label, "Thingspeak API Key", thingspeakApiKey, 17);
     ESPAsync_WMParameter p_azureAccountName(AzureAccountName_Label, "Storage Account Name", azureAccountName, 20); 
     ESPAsync_WMParameter p_azureAccountKey(AzureAccountKey_Label, "Storage Account Key", "", 90);
-    ESPAsync_WMParameter p_soundSwitcherThreshold(SoundSwitcherThresholdString_Label, "Threshold", soundSwitcherThresholdString, 5);
+    ESPAsync_WMParameter p_soundSwitcherThreshold(SoundSwitcherThresholdString_Label, "Threshold", sSwiThreHoStr, 6);
   // Just a quick hint
     ESPAsync_WMParameter p_hint("<small>*Hint: if you want to reuse the currently active WiFi credentials, leave SSID and Password fields empty</small>");
 
@@ -1261,7 +1267,7 @@ void setup()
     configDataLoaded = true;
     
     ESPAsync_wifiManager.setConfigPortalTimeout(60); //If no access point name has been previously entered disable timeout.
-    Serial.println(F("Got stored Credentials. Timeout 600s for Config Portal"));
+    Serial.println(F("Got stored Credentials. Timeout 60s for Config Portal"));
 
 #if USE_ESP_WIFIMANAGER_NTP      
     if ( strlen(WM_config.TZ_Name) > 0 )
@@ -1289,35 +1295,41 @@ void setup()
   }
 
   // SSID to uppercase
-  ssid.toUpperCase();
+  //ssid.toUpperCase();
 
-  Serial.print(F("Starting configuration portal @ "));
+  //RoSchmi for tests
+  initialConfig = true;
+
+  if (initialConfig)
+  {
+    Serial.print(F("Starting configuration portal @ "));
     
 #if USE_CUSTOM_AP_IP    
-  Serial.print(APStaticIP);
+    Serial.print(APStaticIP);
 #else
-  Serial.print(F("192.168.4.1"));
+    Serial.print(F("192.168.4.1"));
 #endif
 
-  Serial.print(F(", SSID = "));
-  Serial.print(ssid);
-  Serial.print(F(", PWD = "));
-  Serial.println(password);
+    Serial.print(F(", SSID = "));
+    Serial.print(ssid);
+    Serial.print(F(", PWD = "));
+    Serial.println(password);
 
-  digitalWrite(LED_BUILTIN, LED_ON); // turn the LED on by making the voltage LOW to tell us we are in configuration mode.
+    digitalWrite(LED_BUILTIN, LED_ON); // Turn led on as we are in configuration mode.
 
-  // Starts an access point
-  if (!ESPAsync_wifiManager.startConfigPortal((const char *) ssid.c_str(), (const char *)password.c_str()))
-    Serial.println(F("Not connected to WiFi but continuing anyway."));
-  else
-  {
-    Serial.println(F("WiFi connected...yeey :)"));
-  }
+    //sets timeout in seconds until configuration portal gets turned off.
+    //If not specified device will remain in configuration mode until
+    //switched off via webserver or device is restarted.
+    //ESPAsync_wifiManager.setConfigPortalTimeout(600);
 
-  // Only clear then save data if CP entered and with new valid Credentials
-  // No CP => stored getSSID() = ""
-  if ( String(ESPAsync_wifiManager.getSSID(0)) != "" && String(ESPAsync_wifiManager.getSSID(1)) != "" )
-  {
+    // Starts an access point
+    if (!ESPAsync_wifiManager.startConfigPortal((const char *) ssid.c_str(), password.c_str()))
+      Serial.println(F("Not connected to WiFi but continuing anyway."));
+    else
+    {
+      Serial.println(F("WiFi connected...yeey :)"));
+    }
+
     // Stored  for later usage, from v1.1.0, but clear first
     memset(&WM_config, 0, sizeof(WM_config));
     
@@ -1330,12 +1342,12 @@ void setup()
         strcpy(WM_config.WiFi_Creds[i].wifi_ssid, tempSSID.c_str());
       else
         strncpy(WM_config.WiFi_Creds[i].wifi_ssid, tempSSID.c_str(), sizeof(WM_config.WiFi_Creds[i].wifi_ssid) - 1);
-  
+
       if (strlen(tempPW.c_str()) < sizeof(WM_config.WiFi_Creds[i].wifi_pw) - 1)
         strcpy(WM_config.WiFi_Creds[i].wifi_pw, tempPW.c_str());
       else
         strncpy(WM_config.WiFi_Creds[i].wifi_pw, tempPW.c_str(), sizeof(WM_config.WiFi_Creds[i].wifi_pw) - 1);  
-  
+
       // Don't permit NULL SSID and password len < MIN_AP_PASSWORD_SIZE (8)
       if ( (String(WM_config.WiFi_Creds[i].wifi_ssid) != "") && (strlen(WM_config.WiFi_Creds[i].wifi_pw) >= MIN_AP_PASSWORD_SIZE) )
       {
@@ -1343,7 +1355,6 @@ void setup()
         wifiMulti.addAP(WM_config.WiFi_Creds[i].wifi_ssid, WM_config.WiFi_Creds[i].wifi_pw);
       }
     }
-
 #if USE_ESP_WIFIMANAGER_NTP      
     String tempTZ   = ESPAsync_wifiManager.getTimezoneName();
 
@@ -1380,68 +1391,32 @@ void setup()
     ESPAsync_wifiManager.getSTAStaticIPConfig(WM_STA_IPconfig);
     //////
     
-     //RoSchmi
-    Serial.println("\r\nSaving config Data!");
     saveConfigData();
+  }
 
-    // Getting posted form values and overriding local variables parameters
+  //RoSchmi
+
+
+  // Getting posted form values and overriding local variables parameters
     // Config file is written regardless the connection state
+    //strcpy(thingspeakApiKey, p_thingspeakApiKey.getValue());
     strcpy(azureAccountName, p_azureAccountName.getValue());
     strcpy(azureAccountKey, p_azureAccountKey.getValue());
-    strcpy(soundSwitcherThresholdString, p_soundSwitcherThreshold.getValue());
+    strcpy(sSwiThreHoStr, p_soundSwitcherThreshold.getValue());
     //sensorDht22 = (strncmp(p_sensorDht22.getValue(), "T", 1) == 0);
     //pinSda = atoi(p_pinSda.getValue());
     //pinScl = atoi(p_pinScl.getValue());
     // Writing JSON config file to flash for next boot
-    writeConfigFile();
 
-    //RoSchmi
-    //Serial.println("\r\nWriting config file!");
-    //writeConfigFile();
 
-    initialConfig = true;
-  }
+
+  writeConfigFile();
 
   digitalWrite(LED_BUILTIN, LED_OFF); // Turn led off as we are not in configuration mode.
 
   startedAt = millis();
-  /*
-  while (true)
-  {
-    Serial.println("Waiting");
-    delay(2000);
-  }
-  */
-  if (!initialConfig)
-  {
-    // Load stored data, the addAP ready for MultiWiFi reconnection
-    if (!configDataLoaded)
-    {
-      //loadConfigData();
-      readConfigFile();
-    }
 
-    for (uint8_t i = 0; i < NUM_WIFI_CREDENTIALS; i++)
-    {
-      // Don't permit NULL SSID and password len < MIN_AP_PASSWORD_SIZE (8)
-      if ( (String(WM_config.WiFi_Creds[i].wifi_ssid) != "") && (strlen(WM_config.WiFi_Creds[i].wifi_pw) >= MIN_AP_PASSWORD_SIZE) )
-      {
-        LOGERROR3(F("* Add SSID = "), WM_config.WiFi_Creds[i].wifi_ssid, F(", PW = "), WM_config.WiFi_Creds[i].wifi_pw );
-        wifiMulti.addAP(WM_config.WiFi_Creds[i].wifi_ssid, WM_config.WiFi_Creds[i].wifi_pw);
-      }
-    }
-
-    if ( WiFi.status() != WL_CONNECTED ) 
-    {
-      Serial.println(F("ConnectMultiWiFi in setup"));
-     
-      connectMultiWiFi();
-    }
-  }
-
-  Serial.print(F("After waiting "));
-  Serial.print((float) (millis() - startedAt) / 1000L);
-  Serial.print(F(" secs more in setup(), connection result is "));
+  
   
   // RoSchmi
 
