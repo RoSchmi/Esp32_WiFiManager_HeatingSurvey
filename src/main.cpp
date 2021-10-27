@@ -1,14 +1,14 @@
 // Program 'Esp32_WiFiManager_HeatingSurvey'
 // Copyright: RoSchmi 2021, License: Apache 2.0
 
-// This App for Esp 32 monitors the activity of the burner of an oil-heating
+// This App for Esp32 monitors the activity of the burner of an oil-heating
 // (or any other noisy thing) by measuring the sound of e.g. the heating burner 
 // using an Adafruit I2S microphone
 // The on/off states are transferred to the Cloud (Azure Storage Tables)
 // via WLAN and can be visulized graphically through the iPhone- or Android-App
 // Charts4Azure.
-// The WiFi Credentials can be entered via a Portal page which is provided for a minute
-// by the Esp 32 after powering up the device. After having entered the credentials
+// The WiFi Credentials can be entered via a Portal page which is provided for one minute
+// by the Esp32 after powering up the device. After having entered the credentials
 // one time they stay permanently on the Esp32 and need not to be entered every time.
 
 // This App uses an adaption of the 'Async_ConfigOnStartup.ino' as WiFi Mangager
@@ -122,9 +122,6 @@ const bool augmentTableNameWithYear = true;
 
 #define LED_BUILTIN 2
 
-
-
-
 //RoSchmi
 //const char *ssid = IOT_CONFIG_WIFI_SSID;
 //const char *password = IOT_CONFIG_WIFI_PASSWORD;
@@ -206,35 +203,21 @@ int32_t sysTimeNtpDelta = 0;
 
   Timezone myTimezone;
 
-     // Set transport protocol as defined in config.h
+// Set transport protocol as defined in config.h
 static bool UseHttps_State = TRANSPORT_PROTOCOL == 0 ? false : true;
 
-
+// Parameter for WiFi-Manager
 char azureAccountName[20] =  AZURE_CONFIG_ACCOUNT_NAME;
 char azureAccountKey[90] =  AZURE_CONFIG_ACCOUNT_KEY;
 char sSwiThresholdStr[6] = SOUNDSWITCHER_THRESHOLD;
-
 
 #define AzureAccountName_Label "azureAccountName"
 #define AzureAccountKey_Label "azureAccountKey"
 #define SoundSwitcherThresholdString_Label "sSwiThresholdStr"
 
-/*
-#define ThingSpeakAPI_Label       "thingspeakApiKey"
-#define SensorDht22_Label         "SensorDHT22"
-#define PinSDA_Label              "PinSda"
-#define PinSCL_Label              "PinScl"
-*/
-
-// Function Prototypes
-
+// Function Prototypes for WiFiManager
 bool readConfigFile();
 bool writeConfigFile();
-
-// loadConfigData
-// saveConfigData
-
-
 
 CloudStorageAccount myCloudStorageAccount(azureAccountName, azureAccountKey, UseHttps_State);
 CloudStorageAccount * myCloudStorageAccountPtr = &myCloudStorageAccount;
@@ -244,7 +227,7 @@ void GPIOPinISR()
   buttonPressed = true;
 }
 
-// function forward declaration
+// function forward declarations
 void print_reset_reason(RESET_REASON reason);
 void scan_WIFI();
 boolean connect_Wifi(const char * ssid, const char * password);
@@ -260,8 +243,10 @@ int getMonNum(const char * month);
 int getWeekOfMonthNum(const char * weekOfMonth);
 
 
-// Here begin the WiFi Manager definitions
+// Here: Begin of WiFi Manager definitions
 //***************************************************************
+
+
 #if !( defined(ESP8266) ||  defined(ESP32) )
   #error This code is intended to run on the ESP8266 or ESP32 platform! Please check your Tools->Board setting.
 #endif
@@ -355,9 +340,7 @@ int getWeekOfMonthNum(const char * weekOfMonth);
 // SSID and PW for Config Portal
 //RoSchmi
 String ssid = "ESP_" + String(ESP_getChipId(), HEX);
-//String ssid = "ESP_Roland_01";
 
-//const char* password = "your_password";
 String password;
 
 // SSID and PW for your Router
@@ -864,9 +847,7 @@ bool readConfigFile()
     return false;
   }
   else
-  {
-    // RoSchmi
-    Serial.println("we could open the file");
+  { 
     // we could open the file
     size_t size = f.size();
     // Allocate a buffer to store contents of the file.
@@ -887,8 +868,7 @@ bool readConfigFile()
       Serial.println(F("JSON parseObject() failed"));
       return false;
     }
-    // RoSchmi
-    Serial.println(F("Parsing object successful: "));
+    Serial.println(F("Here we could print the read parameter"));
     serializeJson(json, Serial);
 #else
     DynamicJsonBuffer jsonBuffer;
@@ -904,19 +884,10 @@ bool readConfigFile()
 #endif
 
     // Parse all config file parameters, override
-    // local config variables with parsed values
-    /*
-    if (json.containsKey(ThingSpeakAPI_Label))
-    {
-      strcpy(thingspeakApiKey, json[ThingSpeakAPI_Label]);
-    }
-    */
+    // local config variables with parsed values    
     if (json.containsKey(AzureAccountName_Label))
     {
-      strcpy(azureAccountName, json[AzureAccountName_Label]);
-      //RoSchmi
-      Serial.println("AcountName is:");
-      Serial.println((char *)azureAccountName);
+      strcpy(azureAccountName, json[AzureAccountName_Label]);      
     }
     if (json.containsKey(AzureAccountKey_Label))
     {
@@ -928,6 +899,10 @@ bool readConfigFile()
     }
   }
   Serial.println(F("\nConfig file was successfully parsed"));
+  //RoSchmi
+  Serial.println((char *)azureAccountName);
+  Serial.println((char *)azureAccountKey);
+  Serial.println((char *)sSwiThresholdStr);
   return true;
 }
 
@@ -942,21 +917,13 @@ bool writeConfigFile()
   JsonObject& json = jsonBuffer.createObject();
 #endif
 
-  // JSONify local configuration parameters
-  /*
-  json[ThingSpeakAPI_Label] = thingspeakApiKey;
-  json[SensorDht22_Label] = sensorDht22;
-  json[PinSDA_Label] = pinSda;
-  json[PinSCL_Label] = pinScl;
-  */
+  // JSONify local configuration parameters 
   json[AzureAccountName_Label] = azureAccountName;
   json[AzureAccountKey_Label] = azureAccountKey;
   json[SoundSwitcherThresholdString_Label] = sSwiThresholdStr;
   // Open file for writing
-  //File f = FileFS.open(CONFIG_FILE, "w");
   File f = FileFS.open(CONFIG_FILENAME, "w");
   
-
   if (!f)
   {
     Serial.println(F("Failed to open config file for writing"));
@@ -968,7 +935,7 @@ bool writeConfigFile()
   // Write data to file and close it
 
   // RoSchmi
-  serializeJson(json, Serial);
+  //serializeJson(json, Serial);
 
   serializeJson(json, f);
 #else
@@ -1163,8 +1130,6 @@ void setup()
 
   // RoSchmi
 
-  
-
   if (!readConfigFile())
   {
     Serial.println(F("Failed to read ConfigFile, using default values"));
@@ -1237,7 +1202,7 @@ void setup()
     ESPAsync_WMParameter p_azureAccountKey(AzureAccountKey_Label, "Storage Account Key", "", 90);
     ESPAsync_WMParameter p_soundSwitcherThreshold(SoundSwitcherThresholdString_Label, "Threshold", sSwiThresholdStr, 6);
   // Just a quick hint
-    ESPAsync_WMParameter p_hint("<small>*Hint: if you want to reuse the currently active WiFi credentials, leave SSID and Password fields empty</small>");
+    ESPAsync_WMParameter p_hint("<small>*Hint: if you want to reuse the currently active WiFi credentials, leave SSID and Password fields empty. <br/>Portal Password = MyESP_'hexnumber'</small>");
 
     //add all parameters here
 
@@ -1297,10 +1262,7 @@ void setup()
     initialConfig = true;
   }
 
-  // SSID to uppercase
-  //ssid.toUpperCase();
-
-  //RoSchmi for tests
+  //RoSchmi must always be true in this App 
   initialConfig = true;
 
   if (initialConfig)
@@ -1397,16 +1359,11 @@ void setup()
     saveConfigData();
   }
 
-  //RoSchmi
-
-
   // Getting posted form values and overriding local variables parameters
   // Config file is written regardless the connection state 
   strcpy(azureAccountName, p_azureAccountName.getValue());
   if (strlen(p_azureAccountKey.getValue()) > 1)
   {
-    // RoSchmi 
-    Serial.println("Overwriting Azure Key");
     strcpy(azureAccountKey, p_azureAccountKey.getValue());
   }
   strcpy(sSwiThresholdStr, p_soundSwitcherThreshold.getValue());
@@ -1419,19 +1376,12 @@ void setup()
 
   startedAt = millis();
 
-  
-  
-  // RoSchmi
-
-  // Must be updated with values from WiFi-Manager
-  myCloudStorageAccount.AccountName = azureAccountName;
-  myCloudStorageAccount.AccountKey = azureAccountKey;
-  
-  
-
-
-  //CloudStorageAccount myCloudStorageAccount(azureAccountName, azureAccountKey, UseHttps_State);
-  //CloudStorageAccount * myCloudStorageAccountPtr = &myCloudStorageAccount;
+  // Azure Acount must be updated here with event. changed values from WiFi-Manager
+  myCloudStorageAccount.ChangeAccountParams((char *)azureAccountName, (char *)azureAccountKey, UseHttps_State);
+  Serial.println(myCloudStorageAccount.AccountName);
+  Serial.println(myCloudStorageAccount.AccountKey);
+  Serial.println(myCloudStorageAccount.HostNameTable);
+  Serial.println(myCloudStorageAccount.UriEndPointTable);
 
   #if WORK_WITH_WATCHDOG == 1
     // Start watchdog with 20 seconds
@@ -1486,8 +1436,8 @@ void setup()
 
   //Initialize OnOffSwitcher (for tests and simulation)
   onOffSwitcherWio.begin(TimeSpan(15 * 60));   // Toggle every 30 min
-  onOffSwitcherWio.SetInactive();
-  //onOffSwitcherWio.SetActive();
+  //onOffSwitcherWio.SetInactive();
+  onOffSwitcherWio.SetActive();
 
 // Setting Daylightsavingtime. Enter values for your zone in file include/config.h
   // Program aborts in some cases of invalid values
@@ -1635,8 +1585,8 @@ void loop()
       if (onOffSwitcherWio.hasToggled(dateTimeUTCNow))
       {
         bool state = onOffSwitcherWio.GetState();
-        onOffDataContainer.SetNewOnOffValue(0, state, dateTimeUTCNow, timeZoneOffsetUTC);
-        onOffDataContainer.SetNewOnOffValue(1, !state, dateTimeUTCNow, timeZoneOffsetUTC);    
+        onOffDataContainer.SetNewOnOffValue(2, state, dateTimeUTCNow, timeZoneOffsetUTC);
+        onOffDataContainer.SetNewOnOffValue(3, !state, dateTimeUTCNow, timeZoneOffsetUTC);    
       }
         
         
@@ -1644,7 +1594,7 @@ void loop()
         {
             if (feedResult.hasToggled)
             {
-              onOffDataContainer.SetNewOnOffValue(2, feedResult.state, dateTimeUTCNow, timeZoneOffsetUTC);
+              onOffDataContainer.SetNewOnOffValue(0, feedResult.state, dateTimeUTCNow, timeZoneOffsetUTC);
               Serial.print("\r\nHas toggled, new state is: ");
               Serial.println(feedResult.state == true ? "High" : "Low");
               Serial.println();
@@ -1659,14 +1609,9 @@ void loop()
               Serial.println(feedResult.lowAvValue);
               Serial.println(feedResult.highAvValue);
               Serial.println();
-            }
-
-            
-            
+            }           
         }
         
-      
-
       // Check if something is to do: send analog data ? send On/Off-Data ? Handle EndOfDay stuff ?
       if (dataContainer.hasToBeSent() || onOffDataContainer.One_hasToBeBeSent(localTime) || isLast15SecondsOfDay)
       {    
@@ -2055,6 +2000,7 @@ float ReadAnalogSensor(int pSensorIndex)
               {
                 case 0:
                     {
+                      // must be called in the first case
                       feedResult = soundSwitcher.feed();
                       if (feedResult.isValid)  
                       {
@@ -2064,7 +2010,7 @@ float ReadAnalogSensor(int pSensorIndex)
                         analogSensorMgr.SetReadTimeAndValues(pSensorIndex, dateTimeUTCNow, soundValues[1], soundValues[0], MAGIC_NUMBER_INVALID);
                         
                         //theRead = feedResult.highAvValue / 10;
-                        // Not used
+                        // Function not used in this App, can be used to display another sensor
                         theRead = MAGIC_NUMBER_INVALID;
 
                         // Take theRead (nearly) 0.0 as invalid
@@ -2073,7 +2019,6 @@ float ReadAnalogSensor(int pSensorIndex)
                         {
                           theRead = MAGIC_NUMBER_INVALID;
                         }
-
                       }                                                                               
                     }
                     break;
@@ -2106,7 +2051,8 @@ float ReadAnalogSensor(int pSensorIndex)
                     }
                     break;
                 case 2:
-                    {                                                  
+                    {  
+                        // Show ascending lines from 0 to 5, so re-boots of the board are indicated                                                
                         theRead = ((double)(insertCounterAnalogTable % 50)) / 10;
                         return theRead;                                                                   
                     }

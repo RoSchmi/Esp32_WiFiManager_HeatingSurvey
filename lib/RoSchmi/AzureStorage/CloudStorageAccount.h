@@ -14,6 +14,8 @@ public:
     CloudStorageAccount(String accountName, String accountKey, bool useHttps);
     ~CloudStorageAccount();
 
+    void ChangeAccountParams(String accountName, String accountKey, bool useHttps);
+    
     String AccountName;
     String AccountKey;
     //String UriEndPointBlob;
