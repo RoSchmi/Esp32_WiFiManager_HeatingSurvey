@@ -206,6 +206,9 @@ int32_t sysTimeNtpDelta = 0;
 // Set transport protocol as defined in config.h
 static bool UseHttps_State = TRANSPORT_PROTOCOL == 0 ? false : true;
 
+// RoSchmi
+const char * CONFIG_FILE = "/ConfigSW.json";
+
 // Parameter for WiFi-Manager
 char azureAccountName[20] =  AZURE_CONFIG_ACCOUNT_NAME;
 char azureAccountKey[90] =  AZURE_CONFIG_ACCOUNT_KEY;
@@ -219,6 +222,7 @@ char sSwiThresholdStr[6] = SOUNDSWITCHER_THRESHOLD;
 bool readConfigFile();
 bool writeConfigFile();
 
+// Note: AzureAccountName and azureccountKey will be changed later in setup
 CloudStorageAccount myCloudStorageAccount(azureAccountName, azureAccountKey, UseHttps_State);
 CloudStorageAccount * myCloudStorageAccountPtr = &myCloudStorageAccount;
 
@@ -389,9 +393,8 @@ WM_Config         WM_config;
 #define  CONFIG_FILENAME              F("/wifi_cred.dat")
 //////
 
-// Indicates whether ESP has WiFi credentials saved from previous session, or double reset detected
-// RoSchmi
-//bool initialConfig = true;
+// Indicates whether ESP has WiFi credentials saved from previous session
+// Is set to true if WiFi-Credentials could be read from SPIFFS/LittleFS
 bool initialConfig = false;
 
 // Use false if you don't like to display Available Pages in Information Page of Config Portal
@@ -479,11 +482,6 @@ IPAddress APStaticSN  = IPAddress(255, 255, 255, 0);
 
 // Onboard LED I/O pin on NodeMCU board
 const int PIN_LED = 2; // D4 on NodeMCU and WeMos. GPIO2/ADC12 of ESP32. Controls the onboard LED.
-
-
-
-
-
 
 ///////////////////////////////////////////
 // New in v1.4.0
@@ -814,13 +812,8 @@ void saveConfigData()
 
   if (file)
   {
-    //RoSchmi
-    Serial.println("File exists");
-
-    WM_config.checksum = calcChecksum( (uint8_t*) &WM_config, sizeof(WM_config) - sizeof(WM_config.checksum) );
-    
+    WM_config.checksum = calcChecksum( (uint8_t*) &WM_config, sizeof(WM_config) - sizeof(WM_config.checksum) );   
     file.write((uint8_t*) &WM_config, sizeof(WM_config));
-
     displayIPConfigStruct(WM_STA_IPconfig);
 
     // New in v1.4.0
@@ -839,7 +832,7 @@ void saveConfigData()
 bool readConfigFile()
 {
   // this opens the config file in read-mode
-  File f = FileFS.open(CONFIG_FILENAME, "r");
+  File f = FileFS.open(CONFIG_FILE, "r");
 
   if (!f)
   {
@@ -868,8 +861,8 @@ bool readConfigFile()
       Serial.println(F("JSON parseObject() failed"));
       return false;
     }
-    Serial.println(F("Here we could print the read parameter"));
-    serializeJson(json, Serial);
+    Serial.println(F("Here we could print the WiFi Credentials read from SPIFFS/LittleFS"));
+    //serializeJson(json, Serial);
 #else
     DynamicJsonBuffer jsonBuffer;
     // Parse JSON string
@@ -898,11 +891,7 @@ bool readConfigFile()
       strcpy(sSwiThresholdStr, json[SoundSwitcherThresholdString_Label]);      
     }
   }
-  Serial.println(F("\nConfig file was successfully parsed"));
-  //RoSchmi
-  Serial.println((char *)azureAccountName);
-  Serial.println((char *)azureAccountKey);
-  Serial.println((char *)sSwiThresholdStr);
+  Serial.println(F("\nConfig file was successfully parsed")); 
   return true;
 }
 
@@ -922,7 +911,7 @@ bool writeConfigFile()
   json[AzureAccountKey_Label] = azureAccountKey;
   json[SoundSwitcherThresholdString_Label] = sSwiThresholdStr;
   // Open file for writing
-  File f = FileFS.open(CONFIG_FILENAME, "w");
+  File f = FileFS.open(CONFIG_FILE, "w");
   
   if (!f)
   {
@@ -931,12 +920,10 @@ bool writeConfigFile()
   }
 
 #if (ARDUINOJSON_VERSION_MAJOR >= 6)
-  serializeJsonPretty(json, Serial);
+  Serial.println(F("Here we could print the parameter written to flash"));
+  //serializeJsonPretty(json, Serial);
+
   // Write data to file and close it
-
-  // RoSchmi
-  //serializeJson(json, Serial);
-
   serializeJson(json, f);
 #else
   json.prettyPrintTo(Serial);
@@ -949,8 +936,6 @@ bool writeConfigFile()
   Serial.println(F("\nConfig file was successfully saved"));
   return true;
 }
-
-
 
 void setup()
 {
@@ -966,7 +951,6 @@ void setup()
   __unused uint32_t minFreeHeap = esp_get_minimum_free_heap_size();
   uint32_t freeHeapSize = esp_get_free_heap_size();
   
-  
   /*
   UBaseType_t watermarkStart_0 = uxTaskGetStackHighWaterMark(taskHandle_0);
   UBaseType_t watermarkStart_1 = uxTaskGetStackHighWaterMark(NULL);
@@ -978,25 +962,19 @@ void setup()
 
   
   // Disable watchdog
-
-  //volatile int wdt_State = esp_task_wdt_status(NULL);
-  
-  //volatile int wdt_deinit_result = esp_task_wdt_deinit();
-
+  // volatile int wdt_State = esp_task_wdt_status(NULL);
+  // volatile int wdt_deinit_result = esp_task_wdt_deinit();
   // ESP_ERR_INVALID_STATE  -- 259
   // ESP_ERR_NOT_FOUND -- 261
 
-  
     if ((esp_task_wdt_status(NULL) == ESP_ERR_NOT_FOUND) || (esp_task_wdt_deinit() == ESP_OK))
     {
       watchDogEnabled = false;
-      watchDogCommandSuccessful = true;
-      
+      watchDogCommandSuccessful = true;    
     }
     else
     {
-      watchDogCommandSuccessful = false;
-    
+      watchDogCommandSuccessful = false;   
     }
   
   // initialize the LED digital pin as an output.
@@ -1044,7 +1022,7 @@ void setup()
     ESP.restart();
   }
 
-  delay(2000);
+  delay(4000);
   
 
   // If wanted -> Wait on press/release of boot button
@@ -1073,17 +1051,10 @@ void setup()
     Serial.println(ESP_ASYNC_WIFIMANAGER_VERSION_MIN_TARGET);
   }
   
-  // New RoSchmi
-
+  
+  // RoSchmi
   // Initialize the LED digital pin as an output.
-  pinMode(PIN_LED, OUTPUT);
-
-  // Initialize trigger pins
-  //pinMode(TRIGGER_PIN, INPUT_PULLUP);
-  //pinMode(TRIGGER_PIN2, INPUT_PULLUP);
-  
-  
-  // end new
+  // pinMode(PIN_LED, OUTPUT);
 
   Serial.setDebugOutput(false);
 
@@ -1181,42 +1152,36 @@ void setup()
   Router_SSID = ESPAsync_wifiManager.WiFi_SSID();
   Router_Pass = ESPAsync_wifiManager.WiFi_Pass();
 
+  Serial.println(F("Here we could print the used WiFi-Credentials"));
   //Remove this line if you do not want to see WiFi password printed
-  Serial.println("ESP Self-Stored: SSID = " + Router_SSID + ", Pass = " + Router_Pass);
+  //Serial.println("ESP Self-Stored: SSID = " + Router_SSID + ", Pass = " + Router_Pass);
   
-  // RoSchmi new
-  // SSID to uppercase
   ssid.toUpperCase();
   password = "My" + ssid;
 
-  // RoSchmi end new
-
-// RoSchmi new
+  // RoSchmi new
   // Extra parameters to be configured
   // After connecting, parameter.getValue() will get you the configured value
   // Format: <ID> <Placeholder text> <default value> <length> <custom HTML> <label placement>
   
-  // Thingspeak API Key - this is a straight forward string parameter
-    //ESPAsync_WMParameter p_thingspeakApiKey(ThingSpeakAPI_Label, "Thingspeak API Key", thingspeakApiKey, 17);
-    ESPAsync_WMParameter p_azureAccountName(AzureAccountName_Label, "Storage Account Name", azureAccountName, 20); 
-    ESPAsync_WMParameter p_azureAccountKey(AzureAccountKey_Label, "Storage Account Key", "", 90);
-    ESPAsync_WMParameter p_soundSwitcherThreshold(SoundSwitcherThresholdString_Label, "Threshold", sSwiThresholdStr, 6);
+  ESPAsync_WMParameter p_azureAccountName(AzureAccountName_Label, "Storage Account Name", azureAccountName, 20); 
+  ESPAsync_WMParameter p_azureAccountKey(AzureAccountKey_Label, "Storage Account Key", "", 90);
+  ESPAsync_WMParameter p_soundSwitcherThreshold(SoundSwitcherThresholdString_Label, "Threshold", sSwiThresholdStr, 6);
   // Just a quick hint
-    ESPAsync_WMParameter p_hint("<small>*Hint: if you want to reuse the currently active WiFi credentials, leave SSID and Password fields empty. <br/>Portal Password = MyESP_'hexnumber'</small>");
-
-    //add all parameters here
-
-    ESPAsync_wifiManager.addParameter(&p_hint);
-    ESPAsync_wifiManager.addParameter(&p_azureAccountName);
-    ESPAsync_wifiManager.addParameter(&p_azureAccountKey);
-    ESPAsync_wifiManager.addParameter(&p_soundSwitcherThreshold);
-
-
+  ESPAsync_WMParameter p_hint("<small>*Hint: if you want to reuse the currently active WiFi credentials, leave SSID and Password fields empty. <br/>*Portal Password = MyESP_'hexnumber'</small>");
+  ESPAsync_WMParameter p_hint2("<small><br/>*Hint: to enter the long Azure Key, send it to your Phone by E-Mail and use copy and paste.</small>");
+    
+  //add all parameters here
+  ESPAsync_wifiManager.addParameter(&p_hint);
+  ESPAsync_wifiManager.addParameter(&p_hint2);
+  ESPAsync_wifiManager.addParameter(&p_azureAccountName);
+  ESPAsync_wifiManager.addParameter(&p_azureAccountKey);
+  ESPAsync_wifiManager.addParameter(&p_soundSwitcherThreshold);
 
   //Check if there is stored WiFi router/password credentials.
   //If not found, device will remain in configuration mode until switched off via webserver.
   Serial.println(F("Opening configuration portal."));
-
+  
   bool configDataLoaded = false;
 
   // From v1.1.0, Don't permit NULL password
@@ -1226,11 +1191,12 @@ void setup()
     wifiMulti.addAP(Router_SSID.c_str(), Router_Pass.c_str());
     
     ESPAsync_wifiManager.setConfigPortalTimeout(60); //If no access point name has been previously entered disable timeout.
-    Serial.println(F("Got ESP Self-Stored Credentials. Timeout 60s for Config Portal"));
+    Serial.println(F("Here we could print the used WiFi-Credentials"));
+    //Remove this line if you do not want to see WiFi password printed
+    //Serial.println(F("Got ESP Self-Stored Credentials. Timeout 60s for Config Portal"));
   }
   
   if (loadConfigData())
-  //if (readConfigFile())
   {
     configDataLoaded = true;
     
@@ -1376,13 +1342,9 @@ void setup()
 
   startedAt = millis();
 
-  // Azure Acount must be updated here with event. changed values from WiFi-Manager
+  // Azure Acount must be updated here with eventually changed values from WiFi-Manager
   myCloudStorageAccount.ChangeAccountParams((char *)azureAccountName, (char *)azureAccountKey, UseHttps_State);
-  Serial.println(myCloudStorageAccount.AccountName);
-  Serial.println(myCloudStorageAccount.AccountKey);
-  Serial.println(myCloudStorageAccount.HostNameTable);
-  Serial.println(myCloudStorageAccount.UriEndPointTable);
-
+  
   #if WORK_WITH_WATCHDOG == 1
     // Start watchdog with 20 seconds
     if (esp_task_wdt_init(20, true) == ESP_OK)
@@ -1416,10 +1378,6 @@ void setup()
     #endif
   }
 
-  Serial.println("\r\nUsed azure credentials");
-  Serial.println((char *)azureAccountName);
-  Serial.println((char *)azureAccountKey);
-  
   soundSwitcher.begin(atoi((char *)sSwiThresholdStr), Hysteresis::Percent_10, soundSwitcherUpdateInterval, soundSwitcherReadDelayTime);
   soundSwitcher.SetActive();
   //**************************************************************
