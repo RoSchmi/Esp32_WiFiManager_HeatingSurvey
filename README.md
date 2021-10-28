@@ -24,7 +24,8 @@ More infos about the functions and Licenses see:
 
 ![Gallery](https://github.com/RoSchmi/Esp32_WiFiManager_HeatingSurvey/blob/master/pictures/Esp32_Huzzah_I2S_Microphone.png)
 
-// For Adafruit Huzzah Esp32
+For Adafruit Huzzah Esp32:
+
 static const i2s_pin_config_t pin_config_Adafruit_Huzzah_Esp32 = {
     .bck_io_num = 14,                   // BCKL
     .ws_io_num = 15,                    // LRCL
