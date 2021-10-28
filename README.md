@@ -23,3 +23,11 @@ More infos about the functions and Licenses see:
 -https://github.com/khoih-prog/ESPAsync_WiFiManager/tree/master/examples/Async_ConfigOnSwitchFS
 
 ![Gallery](https://github.com/RoSchmi/Esp32_WiFiManager_HeatingSurvey/blob/master/pictures/Esp32_Huzzah_I2S_Microphone.png)
+
+// For Adafruit Huzzah Esp32
+static const i2s_pin_config_t pin_config_Adafruit_Huzzah_Esp32 = {
+    .bck_io_num = 14,                   // BCKL
+    .ws_io_num = 15,                    // LRCL
+    .data_out_num = I2S_PIN_NO_CHANGE,  // not used (only for speakers)
+    .data_in_num = 32                   // DOUT
+};
