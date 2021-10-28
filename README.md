@@ -7,7 +7,7 @@ This App for Esp32 monitors the activity of the burner of an oil-heating
 using an Adafruit I2S microphone
 The on/off states are transferred to the Cloud (Azure Storage Tables)
 via WLAN and can be visulized graphically through the iPhone- or Android-App
-Charts4Azure.
+Charts4Azure  https://azureiotcharts.home.blog/
 
 The WiFi Credentials, Azure table-name and -key and the sound threshold can be entered 
 via a Portal page which is provided for one minute by the Esp32 after powering up the device. 
