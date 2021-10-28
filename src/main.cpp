@@ -174,7 +174,9 @@ static const i2s_pin_config_t pin_config_Esp32_dev = {
     .data_in_num = 22                   // DOUT
 };
 
-SoundSwitcher soundSwitcher(pin_config_Esp32_dev);
+//SoundSwitcher soundSwitcher(pin_config_Esp32_dev);
+SoundSwitcher soundSwitcher(pin_config_Adafruit_Huzzah_Esp32);
+
 
 FeedResponse feedResult;
 
@@ -1051,11 +1053,6 @@ void setup()
     Serial.println(ESP_ASYNC_WIFIMANAGER_VERSION_MIN_TARGET);
   }
   
-  
-  // RoSchmi
-  // Initialize the LED digital pin as an output.
-  // pinMode(PIN_LED, OUTPUT);
-
   Serial.setDebugOutput(false);
 
   if (FORMAT_FILESYSTEM) 
@@ -1098,8 +1095,6 @@ void setup()
   initAPIPConfigStruct(WM_AP_IPconfig);
   initSTAIPConfigStruct(WM_STA_IPconfig);
   //////
-
-  // RoSchmi
 
   if (!readConfigFile())
   {
@@ -1776,28 +1771,10 @@ void loop()
               } 
             }
                           
-          }
-          
+          }         
         } 
-      }    
-     
-  }
-  /*
-  FeedResponse feedResult = soundSwitcher.feed();
-  if (feedResult.isValid && feedResult.hasToggled)
-  {
-    Serial.print("\r\nHas toggled, new state is: ");
-    Serial.println(feedResult.state == true ? "High" : "Low");
-    Serial.print("Average is: ");
-    Serial.println(feedResult.avValue);
-    Serial.println(feedResult.lowAvValue);
-    Serial.println(feedResult.highAvValue);
-    Serial.println();
-  }
-  */
-
-
-  
+      }     
+  } 
 }
 
 // To manage daylightsavingstime stuff convert input ("Last", "First", "Second", "Third", "Fourth") to int equivalent
@@ -1836,10 +1813,6 @@ int getDayNum(const char * day)
   }
   return -1;
 }
-
-
-
-
 
 // Scan for available Wifi networks
 // print result als simple list
