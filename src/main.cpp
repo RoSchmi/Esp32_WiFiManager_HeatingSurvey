@@ -174,8 +174,8 @@ static const i2s_pin_config_t pin_config_Esp32_dev = {
     .data_in_num = 22                   // DOUT
 };
 
-//SoundSwitcher soundSwitcher(pin_config_Esp32_dev);
-SoundSwitcher soundSwitcher(pin_config_Adafruit_Huzzah_Esp32);
+SoundSwitcher soundSwitcher(pin_config_Esp32_dev);
+//SoundSwitcher soundSwitcher(pin_config_Adafruit_Huzzah_Esp32);
 
 
 FeedResponse feedResult;
