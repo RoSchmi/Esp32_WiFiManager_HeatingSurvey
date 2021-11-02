@@ -10,7 +10,8 @@ via WLAN and can be visulized graphically through the iPhone- or Android-App
 Charts4Azure  https://azureiotcharts.home.blog/
 
 The WiFi Credentials, Azure table-name and -key and the sound threshold can be entered 
-via a Portal page which is provided for one minute by the Esp32 after powering up the device. 
+via a Portal page which is provided for one minute by the Esp32 after powering up the device.
+On the first connection to the Portal page a password is needed. This is "My" + the SSID-Name of your Esp32 e.g. MyEsp32_xxxxxx
 After having entered the credentials one time they stay permanently on the Esp32 and need not to be entered every time.
 
 This App uses an adaption of the 'Async_ConfigOnStartup.ino' and 'Async_ConfigOnSwitchFS'as WiFi Mangager
