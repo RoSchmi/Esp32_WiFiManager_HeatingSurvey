@@ -1,4 +1,4 @@
-// Program 'Esp32_WiFiManager_HeatingSurvey'
+// Program 'Esp32_WiFiManager_HeatingSurvey
 // Copyright: RoSchmi 2021, License: Apache 2.0
 
 // This App for Esp32 monitors the activity of the burner of an oil-heating
@@ -128,7 +128,11 @@ const bool augmentTableNameWithYear = true;
 
 typedef const char* X509Certificate;
 
+// https://techcommunity.microsoft.com/t5/azure-storage/azure-storage-tls-critical-changes-are-almost-here-and-why-you/ba-p/2741581
+// baltimore_root_ca will expire in 2025, then take digicert_globalroot_g2_ca
 X509Certificate myX509Certificate = baltimore_root_ca;
+
+//X509Certificate myX509Certificate = digicert_globalroot_g2_ca;
 
 // Init the Secure client object
 
