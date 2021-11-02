@@ -1404,7 +1404,7 @@ void setup()
   bool firstTimeZoneDef_is_Valid = (dstWeekday == -1 || dstMonth == - 1 || dstWeekOfMonth == -1 || DST_START_HOUR > 23 ? true : DST_START_HOUR < 0 ? true : false) ? false : true;
   
   dstWeekday = getDayNum(DST_STOP_WEEKDAY);
-  dstMonth = getMonNum(DST_STOP_MONTH) + 1;
+  dstMonth = getMonNum(DST_STOP_MONTH);
   dstWeekOfMonth = getWeekOfMonthNum(DST_STOP_WEEK_OF_MONTH);
 
   TimeChangeRule stdStart {DST_OFF_NAME, (uint8_t)dstWeekOfMonth, (uint8_t)dstWeekday, (uint8_t)dstMonth, (uint8_t)DST_START_HOUR, (int)TIMEZONEOFFSET};
@@ -1486,7 +1486,6 @@ void setup()
 
 void loop()
 {
-  
   check_status();
   // put your main code here, to run repeatedly:
   if (++loopCounter % 100000 == 0)   // Make decisions to send data every 100000 th round and toggle Led to signal that App is running
