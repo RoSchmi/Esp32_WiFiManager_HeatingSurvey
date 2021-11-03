@@ -67,10 +67,10 @@
 #define ANALOG_SENSOR_READ_INTERVAL_SECONDS 0   // Analog sensors are read with this interval (seconds, can be 0)
                                                 // Must be 0 in Applikation Esp32_WiFiManager_HeatingSurvey                                  
 
-#define WORK_WITH_WATCHDOG 0              // 1 = yes, 0 = no, Watchdog is used (1) or not used (0)
+#define WORK_WITH_WATCHDOG 1              // 1 = yes, 0 = no, Watchdog is used (1) or not used (0)
                                            // should be 1 for normal operation and 0 for testing
                                            
-#define REBOOT_AFTER_FAILED_UPLOAD 0       // 1 = yes, 0 = no
+#define REBOOT_AFTER_FAILED_UPLOAD 1       // 1 = yes, 0 = no
                                            // should be 1 for normal operation and 0 for testing
                                             
 // Set timezoneoffset and daylightsavingtime settings according to your zone
