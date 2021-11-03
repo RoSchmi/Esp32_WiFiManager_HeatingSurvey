@@ -38,7 +38,8 @@ static const i2s_pin_config_t pin_config_Adafruit_Huzzah_Esp32 = {
 ******************************************************************
 ![Gallery](https://github.com/RoSchmi/Esp32_WiFiManager_HeatingSurvey/blob/develop/pictures/ESP32%20Dev-KitC%20V4.png)
 
-// For Esp32-Dev_KitV V4
+// For Esp32-Dev_KitV V4:
+
 static const i2s_pin_config_t pin_config_Esp32_dev = {
     .bck_io_num = 26,                   // BCKL
     .ws_io_num = 25,                    // LRCL
