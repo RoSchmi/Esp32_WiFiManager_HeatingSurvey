@@ -36,7 +36,7 @@ static const i2s_pin_config_t pin_config_Adafruit_Huzzah_Esp32 = {
     .data_in_num = 32                   // DOUT
 };
 ******************************************************************
-![Gallery](https://github.com/RoSchmi/Esp32_WiFiManager_HeatingSurvey/blob/develop/pictures/ESP32%20Dev-KitC%20V4.png)
+![Gallery](https://github.com/RoSchmi/Esp32_WiFiManager_HeatingSurvey/blob/master/pictures/ESP32%20Dev-KitC%20V4.png)
 
 // For Esp32-Dev_KitV V4:
 
@@ -47,4 +47,4 @@ static const i2s_pin_config_t pin_config_Esp32_dev = {
     .data_in_num = 22                   // DOUT
 };
 
-![Gallery](https://github.com/RoSchmi/Esp32_WiFiManager_HeatingSurvey/blob/develop/pictures/Heating_Survey.png)
+![Gallery](https://github.com/RoSchmi/Esp32_WiFiManager_HeatingSurvey/blob/master/pictures/Heating_Survey.png)
