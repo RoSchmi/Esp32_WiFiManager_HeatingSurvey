@@ -38,7 +38,7 @@
 // regular expression "^[A-Za-z][A-Za-z0-9]{2,62}$".
 // max length in this App is 45
 
-#define ANALOG_TABLENAME "AnalogValuesXY"          // Name of the Azure Table to store 4 analog Values max length = 45
+#define ANALOG_TABLENAME "AnalogValuesX"          // Name of the Azure Table to store 4 analog Values max length = 45
 
 #define ANALOG_TABLE_PART_PREFIX "Y2_"            // Prefix for PartitionKey of Analog Tables (default, no need to change)
 

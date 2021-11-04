@@ -1,11 +1,11 @@
-// Program 'Esp32_WiFiManager_HeatingSurvey
+// Program 'Esp32_WiFiManager_HeatingSurvey' Version 1.0.2
 // Copyright: RoSchmi 2021, License: Apache 2.0
 
 // This App for Esp32 monitors the activity of the burner of an oil-heating
 // (or any other noisy thing) by measuring the sound of e.g. the heating burner 
 // using an Adafruit I2S microphone
 // The on/off states are transferred to the Cloud (Azure Storage Tables)
-// via WLAN and can be visulized graphically through the iPhone- or Android-App
+// via WLAN and internet and can be visulized graphically through the iPhone- or Android-App
 // Charts4Azure.
 // The WiFi Credentials can be entered via a Portal page which is provided for one minute
 // by the Esp32 after powering up the device. After having entered the credentials
@@ -26,7 +26,7 @@
 #include "ESPAsyncWebServer.h"
 #include "defines.h"
 #include "config.h"
-#include "config_secret.h"
+//#include "config_secret.h"
 #include "DateTime.h"
 
 #include "FreeRTOS.h"
@@ -68,6 +68,7 @@
 
 // Now support ArduinoJson 6.0.0+ ( tested with v6.14.1 )
 #include <ArduinoJson.h>      // get it from https://arduinojson.org/ or install via Arduino library manager
+
 
 // Default Esp32 stack size of 8192 byte is not enough for this application.
 // --> configure stack size dynamically from code to 16384
@@ -214,6 +215,10 @@ static bool UseHttps_State = TRANSPORT_PROTOCOL == 0 ? false : true;
 
 // RoSchmi
 const char * CONFIG_FILE = "/ConfigSW.json";
+
+#define AZURE_CONFIG_ACCOUNT_NAME "AzureStorageAccName"
+
+#define AZURE_CONFIG_ACCOUNT_KEY   "YourStorageAccountKey"
 
 // Parameter for WiFi-Manager
 char azureAccountName[20] =  AZURE_CONFIG_ACCOUNT_NAME;
