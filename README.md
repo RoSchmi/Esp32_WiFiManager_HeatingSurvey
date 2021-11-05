@@ -2,6 +2,9 @@
 
 Monitor action of a heating burner by reacting on the sound of the running burner
 
+https://www.hackster.io/RoSchmi/heating-burner-monitoring-using-esp32-and-microphone-80015d
+
+
 This App for Esp32 monitors the activity of the burner of an oil-heating
 (or any other noisy thing) by measuring the sound of e.g. the heating burner 
 using an Adafruit I2S microphone
