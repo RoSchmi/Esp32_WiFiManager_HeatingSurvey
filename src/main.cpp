@@ -1,9 +1,9 @@
-// Program 'Esp32_WiFiManager_HeatingSurvey' Version 1.0.2
+// Program 'Esp32_WiFiManager_HeatingSurvey' Version 1.0.3
 // Copyright: RoSchmi 2021, License: Apache 2.0
 
 // This App for Esp32 monitors the activity of the burner of an oil-heating
 // (or any other noisy thing) by measuring the sound of e.g. the heating burner 
-// using an Adafruit I2S microphone
+// using an I2S microphone (Adafruit SPH0645 or INMP441)
 // The on/off states are transferred to the Cloud (Azure Storage Tables)
 // via WLAN and internet and can be visulized graphically through the iPhone- or Android-App
 // Charts4Azure.
@@ -164,14 +164,14 @@ OnOffDataContainerWio onOffDataContainer;
 
 OnOffSwitcherWio onOffSwitcherWio;
 
-// For Adafruit Huzzah Esp32
+// Possible configuration for Adafruit Huzzah Esp32
 static const i2s_pin_config_t pin_config_Adafruit_Huzzah_Esp32 = {
     .bck_io_num = 14,                   // BCKL
     .ws_io_num = 15,                    // LRCL
     .data_out_num = I2S_PIN_NO_CHANGE,  // not used (only for speakers)
     .data_in_num = 32                   // DOUT
 };
-// For some other Esp32 board
+// Possible configuration for some Esp32 DevKitC V4
 static const i2s_pin_config_t pin_config_Esp32_dev = {
     .bck_io_num = 26,                   // BCKL
     .ws_io_num = 25,                    // LRCL
@@ -179,8 +179,12 @@ static const i2s_pin_config_t pin_config_Esp32_dev = {
     .data_in_num = 22                   // DOUT
 };
 
-SoundSwitcher soundSwitcher(pin_config_Esp32_dev);
-//SoundSwitcher soundSwitcher(pin_config_Adafruit_Huzzah_Esp32);
+MicType usedMicType = MicType::SPH0645LM4H;
+//MicType usedMicType = MicType::INMP441;
+
+SoundSwitcher soundSwitcher(pin_config_Esp32_dev, usedMicType);
+//SoundSwitcher soundSwitcher(pin_config_Adafruit_Huzzah_Esp32, usedMicType);
+
 
 
 FeedResponse feedResult;
@@ -1383,6 +1387,7 @@ void setup()
   }
 
   soundSwitcher.begin(atoi((char *)sSwiThresholdStr), Hysteresis::Percent_10, soundSwitcherUpdateInterval, soundSwitcherReadDelayTime);
+  soundSwitcher.SetCalibrationParams(-20.0);  // optional
   soundSwitcher.SetActive();
   //**************************************************************
   onOffDataContainer.begin(DateTime(), OnOffTableName_1, OnOffTableName_2, OnOffTableName_3, OnOffTableName_4);
@@ -1949,6 +1954,7 @@ float ReadAnalogSensor(int pSensorIndex)
                         analogSensorMgr.SetReadTimeAndValues(pSensorIndex, dateTimeUTCNow, soundValues[1], soundValues[0], MAGIC_NUMBER_INVALID);
                         
                         //theRead = feedResult.highAvValue / 10;
+
                         // Function not used in this App, can be used to display another sensor
                         theRead = MAGIC_NUMBER_INVALID;
 

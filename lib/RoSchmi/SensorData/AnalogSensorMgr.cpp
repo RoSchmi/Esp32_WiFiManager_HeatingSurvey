@@ -48,9 +48,7 @@ void AnalogSensorMgr::SetReadTimeAndValues(int pSensorIndex, DateTime now, float
 
 
 AnalogSensor AnalogSensorMgr::GetSensorDates(int pSensorIndex)
-{
-    
-    return readValues[pSensorIndex];
-    
+{   
+    return readValues[pSensorIndex];  
 }
 

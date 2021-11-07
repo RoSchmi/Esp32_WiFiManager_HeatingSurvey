@@ -1,11 +1,14 @@
-// SoundSwitcher
-// How it works: See file SoundSwitcher.h
-
 #include "SoundSwitcher.h"
 
-static const i2s_port_t i2s_num = I2S_NUM_0; // i2s port number
 
-static const i2s_config_t i2s_config_SPH0645LM4H = {
+
+//DateTime  lastSwitchTime = DateTime();
+//TimeSpan  switchInterval = TimeSpan(60);
+
+
+
+static const i2s_port_t i2s_num = I2S_NUM_0; // i2s port number
+static const i2s_config_t i2s_config = {
      .mode = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_RX),
      .sample_rate = 22050,
      .bits_per_sample = I2S_BITS_PER_SAMPLE_32BIT,
@@ -15,20 +18,6 @@ static const i2s_config_t i2s_config_SPH0645LM4H = {
      .dma_buf_count = 8,
      .dma_buf_len = 64,
      .use_apll = false
-};
-// https://esp32.com/viewtopic.php?t=15185
-i2s_config_t i2s_config_INMP441 = {
-    .mode = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_RX),
-    .sample_rate = 11025, // or 44100 if you like
-    .bits_per_sample = I2S_BITS_PER_SAMPLE_32BIT,
-    .channel_format = I2S_CHANNEL_FMT_ONLY_LEFT, // Ground the L/R pin on the INMP441.
-    .communication_format = i2s_comm_format_t(I2S_COMM_FORMAT_I2S | I2S_COMM_FORMAT_I2S_MSB),
-    .intr_alloc_flags = ESP_INTR_FLAG_LEVEL1,
-    .dma_buf_count = 8,    //changed from  .dma_buf_count = 4,
-    .dma_buf_len = 64,     // changed from  .dma_buf_len = ESP_NOW_MAX_DATA_LEN * 4,
-    .use_apll = false,
-    .tx_desc_auto_clear = false,
-    .fixed_mclk = 0,
 };
 
 // For Adafruit Huzzah Esp32
@@ -51,51 +40,52 @@ static const i2s_pin_config_t pin_config = {
 };
 */
 
-SoundSwitcher::SoundSwitcher(i2s_pin_config_t config, MicType micType)
+SoundSwitcher::SoundSwitcher(i2s_pin_config_t config)
 {
-  pin_config = config;
-  if (micType == MicType::SPH0645LM4H)
-  {
-    // https://www.esp32.com/viewtopic.php?t=4997
-    //install and start i2s driver
-    if (ESP_OK != i2s_driver_install(i2s_num, &i2s_config_SPH0645LM4H, 0, NULL)) 
-          {
-            Serial.println("SPH0645LM4H_i2s_driver_install: error");
-          }
-    REG_SET_BIT(  I2S_TIMING_REG(i2s_num),BIT(9));   /*  #include "soc/i2s_reg.h"   I2S_NUM -> 0 or 1*/
-    REG_SET_BIT( I2S_CONF_REG(i2s_num), I2S_RX_MSB_SHIFT);   
-  }
-  else
-  {
-      if (micType == MicType::INMP441)
-      {
-          //https://esp32.com/viewtopic.php?t=15185
-          //install and start i2s driver
-         if (ESP_OK != i2s_driver_install(i2s_num, &i2s_config_SPH0645LM4H, 0, NULL)) 
-          {
-            Serial.println("INMP441_i2s_driver_install: error");
-          }          
-      }
-      else
-      {
-          Serial.println("Not allowed microphone");
-      }
-  }
-  if (ESP_OK != i2s_set_pin(I2S_NUM_0, &pin_config)) 
-  {
-    Serial.println("i2s_set_pin: error");
-  } 
-
+    pin_config = config;
 }
 
 void SoundSwitcher::begin(uint16_t switchThreshold, Hysteresis pHysteresis, uint32_t updateIntervalMs, uint32_t delayTimeMs)
 { 
+  i2s_driver_install(i2s_num, &i2s_config, 0, NULL);   //install and start i2s driver
+  REG_SET_BIT(  I2S_TIMING_REG(i2s_num),BIT(9));   /*  #include "soc/i2s_reg.h"   I2S_NUM -> 0 or 1*/
+  REG_SET_BIT( I2S_CONF_REG(i2s_num), I2S_RX_MSB_SHIFT);
+  i2s_set_pin(i2s_num, &pin_config);
+  
   lastFeedTimeMillis = millis();
   lastBorderNarrowTimeMillis = millis();
   feedIntervalMs = updateIntervalMs;
   threshold = (float)switchThreshold;
   hysteresis = pHysteresis;
-  readDelayTimeMs = delayTimeMs; 
+  readDelayTimeMs = delayTimeMs;
+  /*
+  if (pHysteresis == Hysteresis::Percent_20)
+  {
+      hysteresis = 20;
+  }
+  else
+  {
+      if (pHysteresis == Hysteresis::Percent_10)
+      {
+          hysteresis = 10;
+      }
+      else
+      {
+          if (pHysteresis == Hysteresis::Percent_5)
+          {
+            hysteresis = 5;
+          }
+          else
+          {
+              if (pHysteresis == Hysteresis::Percent_2)
+              {
+                 hysteresis = 2;
+              }
+          }
+      }
+  }
+  */
+  
 }
 
 bool SoundSwitcher::hasToggled()
@@ -193,13 +183,14 @@ FeedResponse SoundSwitcher::feed()
                 feedResponse.avValue = average;
                 feedResponse.lowAvValue = lowAvBorder;
                 feedResponse.highAvValue = highAvBorder;
+
             }
         }       
     }
     hasSwitched = false;
     return feedResponse;
+    
 }
-
 AverageValue SoundSwitcher::getAverage()
 {
     AverageValue averageValue;
@@ -208,16 +199,33 @@ AverageValue SoundSwitcher::getAverage()
     return averageValue; 
 }
 
+/*
+bool SoundSwitcher::hasToggled(DateTime actUtcTime)
+{
+    if (isActive)
+    {
+        if (actUtcTime.operator>=(lastSwitchTime.operator+(switchInterval)))
+        {
+            lastSwitchTime = actUtcTime;
+            state = !state;
+            return true;
+        }
+        else
+        {
+            return false;
+        }
+    }
+    else
+    {
+        return false;
+    }
+}
+*/
+
 bool SoundSwitcher::GetState()
 {
     return state;
 }
-
-void SoundSwitcher::SetCalibrationParams(float pCalibOffset, float pCalibFactor)
-{
-    calibOffset = pCalibOffset;
-    calibFactor = pCalibFactor;
-} 
 
 void SoundSwitcher::SetInactive()
 {
@@ -269,10 +277,7 @@ float SoundSwitcher::getSoundFromMicro()
       minsample = _min(minsample, cleanBuf[i]);
       maxsample = _max(maxsample, cleanBuf[i]);
     }
-       
-    float retValue = (maxsample - minsample) * calibFactor + calibOffset;
-    retValue = retValue <= 0.0 ? 0.0 : retValue;
-    //Serial.print("Volume: ");
-    //Serial.println(retValue); 
-    return retValue;   
+    Serial.print("Volume: ");
+    Serial.println(maxsample - minsample);
+    return maxsample - minsample;
 }

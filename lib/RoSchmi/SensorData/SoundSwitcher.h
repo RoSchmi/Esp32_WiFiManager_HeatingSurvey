@@ -1,12 +1,43 @@
+// Copyrigth RoSchmi, 2021. License Apache 2.0
+// SoundSwitcher for Esp32 on PlatformIO Arduino platform
+// How it works:
+// SoundSwitcher is a class to implement a two state sensor reacting on sound levels
+// The sound volume is measured by an I2S micophone (SPH0645LM4 or INMP441)
+// The state toggles when a changeable soundvolume level is exceeded
+// A changeable hysteresis is accomplished
+//
+// Constructor: has two parameter, a configuaration struct and the used microphone type
+// Initialization: .begin method with 4 parameters (has to be called in setup())
+//     * switchThreshold
+//     * hysteresis
+//     * updateIntervalMs
+//     * delayTimeMs
+
+// The first two need not be explained.
+// updateIntervalMs : a time interval in ms. Only when the time interval has expired
+//                    a new sound level average is calculated
+// delayTimeMs:       this delay time is introduced for reading the analog soundlevel
+//                    after the threshold is exceeded. This parameter determins after
+//                    which timeinterval the analog value is sampled (to read not just
+//                    at the very beginning of the new state)
+//
+// soundSwitcher.SetActive() : Has to be called right after the soundSwitcher.begin function
+// soundSwitcher.SetCalibrationParams() : Is optional, determins an offset and a factor
+//
+// soundSwitcher.feed() : This function is called frequently from the loop() of the main program
+//                        It returns a struct Feedresponse.
+//                        After the feed command, Feedresponse.isValid has to be checked
+//                        If .isValid is true, Feedresponse.hasToggled is checked
+//                        If .hasToggled is true, your reaction on the change of the
+//                        state has to be performed
+
+
 #include <Arduino.h>
-#include <Datetime.h>
 #include <driver/i2s.h>
 #include "soc/i2s_reg.h"
 
 #ifndef _SOUND_SWITCHER_H_
 #define _SOUND_SWITCHER_H_
-
-
 
 typedef struct
     {
@@ -37,18 +68,25 @@ typedef  enum
 }
 Hysteresis;
 
+typedef  enum 
+{
+    INMP441 = 0,
+    SPH0645LM4H = 1
+}
+MicType;
 
 class SoundSwitcher
 {
     
 public:
-    SoundSwitcher(i2s_pin_config_t config);
+    SoundSwitcher(i2s_pin_config_t config, MicType pMicType);
     
     void begin(uint16_t switchThreshold, Hysteresis hysteresis, uint32_t updateIntervalMs, uint32_t delayTimeMs);
     FeedResponse feed();
     AverageValue getAverage();
     void SetInactive();
     void SetActive();
+    void SetCalibrationParams(float pCalibOffset = 0.0, float pCalibFactor = 1.0);  
     bool hasToggled();
     bool GetState();
 
@@ -81,33 +119,29 @@ private:
     float average = 0;
     float lowAvBorder = 10000;
     float highAvBorder = 0;
+    float calibOffset = 0.0;
+    float calibFactor = 1.0;
 
     #define BUFLEN 256
 
-//static const i2s_port_t i2s_num; = I2S_NUM_0; // i2s port number
-/*
-static const i2s_config_t i2s_config = {
-     .mode = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_RX),
-     .sample_rate = 22050,
-     .bits_per_sample = I2S_BITS_PER_SAMPLE_32BIT,
-     .channel_format = I2S_CHANNEL_FMT_RIGHT_LEFT,
-     .communication_format = (i2s_comm_format_t)(I2S_COMM_FORMAT_I2S | I2S_COMM_FORMAT_I2S_MSB),
-     .intr_alloc_flags = 0, // default interrupt priority
-     .dma_buf_count = 8,
-     .dma_buf_len = 64,
-     .use_apll = false
-};
-*/
-
+// Examples for possible configurations
 // For Adafruit Huzzah Esp32
 /*
-static const i2s_pin_config_t pin_config = {
+static const i2s_pin_config_t pin_config_Adafruit_Huzzah_Esp32 = {
     .bck_io_num = 14,                   // BCKL
     .ws_io_num = 15,                    // LRCL
     .data_out_num = I2S_PIN_NO_CHANGE,  // not used (only for speakers)
     .data_in_num = 32                   // DOUT
 };
+// For some other Esp32 board
+static const i2s_pin_config_t pin_config_Esp32_dev = {
+    .bck_io_num = 26,                   // BCKL
+    .ws_io_num = 25,                    // LRCL
+    .data_out_num = I2S_PIN_NO_CHANGE,  // not used (only for speakers)
+    .data_in_num = 22                   // DOUT
+};
 */
+
 };
 
 #endif  // _SOUND_SWITCHER_H_
