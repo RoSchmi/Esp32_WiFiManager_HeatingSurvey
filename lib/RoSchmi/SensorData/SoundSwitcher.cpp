@@ -71,7 +71,7 @@ SoundSwitcher::SoundSwitcher(i2s_pin_config_t config, MicType micType)
       {
           //https://esp32.com/viewtopic.php?t=15185
           //install and start i2s driver
-         if (ESP_OK != i2s_driver_install(i2s_num, &i2s_config_SPH0645LM4H, 0, NULL)) 
+         if (ESP_OK != i2s_driver_install(i2s_num, &i2s_config_INMP441, 0, NULL)) 
           {
             Serial.println("INMP441_i2s_driver_install: error");
           }          
