@@ -273,7 +273,7 @@ int getWeekOfMonthNum(const char * weekOfMonth);
 #define ESP_ASYNC_WIFIMANAGER_VERSION_MIN_TARGET     "ESPAsync_WiFiManager v1.9.2"
 
 // Use from 0 to 4. Higher number, more debugging messages and memory usage.
-#define _ESPASYNC_WIFIMGR_LOGLEVEL_    3
+#define _ESPASYNC_WIFIMGR_LOGLEVEL_    0
 
 //For ESP32, To use ESP32 Dev Module, QIO, Flash 4MB/80MHz, Upload 921600
 
@@ -1571,9 +1571,7 @@ void loop()
             {
               dataContainer.setHasToBeSentFlag();
               Serial.print("Average is: ");
-              Serial.println(feedResult.avValue);
-              Serial.println(feedResult.lowAvValue);
-              Serial.println(feedResult.highAvValue);
+              Serial.println(feedResult.avValue);             
               Serial.println();
             }           
         }
