@@ -179,13 +179,10 @@ static const i2s_pin_config_t pin_config_Esp32_dev = {
     .data_in_num = 22                   // DOUT
 };
 
-MicType usedMicType = MicType::SPH0645LM4H;
-//MicType usedMicType = MicType::INMP441;
+MicType usedMicType = (USED_MICROPHONE == 0) ? MicType::SPH0645LM4H : MicType::INMP441;
 
 SoundSwitcher soundSwitcher(pin_config_Esp32_dev, usedMicType);
 //SoundSwitcher soundSwitcher(pin_config_Adafruit_Huzzah_Esp32, usedMicType);
-
-
 
 FeedResponse feedResult;
 
@@ -1022,7 +1019,7 @@ void setup()
 
   if(watchDogCommandSuccessful)
   {
-    Serial.println(F("\r\nWatchdog is disabled"));
+    Serial.println(F("\r\nWatchdog is preliminary disabled"));
   }
   else
   {
@@ -1036,6 +1033,7 @@ void setup()
     }
     ESP.restart();
   }
+  Serial.printf("Selected Microphone Type = %s\r\n", (usedMicType == MicType::SPH0645LM4H) ? "SPH0645" : "INMP441");
 
   delay(4000);
   
@@ -1357,7 +1355,7 @@ void setup()
     // Start watchdog with 20 seconds
     if (esp_task_wdt_init(20, true) == ESP_OK)
     {
-      Serial.println(F("Watchdog enabled with interval of 20 sec"));
+      Serial.println(F("\r\nWatchdog enabled with interval of 20 sec\r\n"));
     }
     else
     {
@@ -1440,6 +1438,8 @@ void setup()
       delay(5000);
     }
   }
+  
+  
   Serial.println(F("Starting timeClient"));
   timeClient.begin();
   timeClient.setUpdateInterval((NTP_UPDATE_INTERVAL_MINUTES < 1 ? 1 : NTP_UPDATE_INTERVAL_MINUTES) * 60 * 1000);
@@ -1780,8 +1780,7 @@ void loop()
                 }              
               }
               } 
-            }
-                          
+            }                        
           }         
         } 
       }     

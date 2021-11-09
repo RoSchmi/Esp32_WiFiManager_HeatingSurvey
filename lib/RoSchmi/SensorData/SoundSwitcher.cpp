@@ -81,7 +81,7 @@ SoundSwitcher::SoundSwitcher(i2s_pin_config_t config, MicType micType)
           Serial.println("Not allowed microphone");
       }
   }
-  if (ESP_OK != i2s_set_pin(I2S_NUM_0, &pin_config)) 
+  if (ESP_OK != i2s_set_pin(i2s_num, &pin_config)) 
   {
     Serial.println("i2s_set_pin: error");
   } 
@@ -123,6 +123,8 @@ FeedResponse SoundSwitcher::feed()
             if (bufferIsFilled)
             {
                 // limit the effect of short very high sound levels
+                float quarterLevel = threshold / 4;
+                soundVolume = soundVolume < quarterLevel ? quarterLevel : soundVolume;
                 volBuffer[bufIdx] = soundVolume < (average * 4) ? soundVolume : average * 4;
             }
             else
@@ -151,9 +153,8 @@ FeedResponse SoundSwitcher::feed()
                         hasSwitched = true;
                         lastSwitchTimeMillis = millis();
                         analogSendIsPending = true;                                             
-                        state = true;
-                    }
-                    
+                        state = true;                       
+                    }                  
                 }
                 else     // state == true
                 {
@@ -162,7 +163,7 @@ FeedResponse SoundSwitcher::feed()
                         hasSwitched = true;
                         lastSwitchTimeMillis = millis();
                         analogSendIsPending = true;                         
-                        state = false;
+                        state = false;                      
                     }
                     
                 }
