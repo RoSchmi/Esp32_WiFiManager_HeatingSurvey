@@ -22,7 +22,6 @@
  
 #include <Arduino.h>
 #include <time.h>
-
 #include "ESPAsyncWebServer.h"
 #include "defines.h"
 #include "config.h"
