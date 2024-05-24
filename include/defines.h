@@ -299,6 +299,10 @@
   #define BOARD_NAME    BOARD_TYPE
 #endif
 
+#if !( defined(ESP8266) ||  defined(ESP32) )
+  #error This code is intended to run on the ESP8266 or ESP32 platform! Please check your Tools->Board setting.
+#endif
+
 // RoSchmi
 //#include <WiFiWebServer.h>
 
