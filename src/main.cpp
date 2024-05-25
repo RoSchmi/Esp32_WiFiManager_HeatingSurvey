@@ -1,5 +1,20 @@
-// Program 'Esp32_WiFiManager_HeatingSurvey' Version 1.0.3
+// Program 'Esp32_WiFiManager_HeatingSurvey' Version 1.1.0
+// Last updated: 2024_05_24
 // Copyright: RoSchmi 2021, License: Apache 2.0
+
+// The application doesn't compile without a trick:
+// The libraries NTPClient_Generic and Timezone_Generic load the
+// dependency:
+// {
+//      "owner": "khoih-prog",
+//      "name": "ESP8266_AT_WebServer",
+//      "version": ">=1.5.4",
+//      "platforms": ["*"]
+//    },
+// This dependency doesn't compile. So we delete in folder libdeps/ESP32 
+// the dependency in the 'library.json' file and delete the entry 
+// 'ESP8266_AT_WebServer' in the folder libdeps/ESP32
+
 
 // This App for Esp32 monitors the activity of the burner of an oil-heating
 // (or any other noisy thing) by measuring the sound of e.g. the heating burner 
@@ -27,8 +42,8 @@
 #include "config.h"
 //#include "config_secret.h"
 #include "DateTime.h"
-
-#include "FreeRTOS.h"
+//#include "FreeRTOS.h"
+#include <freertos/FreeRTOS.h>
 #include "Esp.h"
 #include "esp_task_wdt.h"
 #include <rom/rtc.h>
@@ -952,6 +967,11 @@ void setup()
 {
   // put your setup code here, to run once:
   // Get Stackptr at start of setup()
+
+  while (true)
+  {
+    delay(1000);
+  }
   void* SpStart = NULL;
   StackPtrAtStart = (void *)&SpStart;
   // Get StackHighWatermark at start of setup()

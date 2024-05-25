@@ -80,6 +80,8 @@ class SoundSwitcher
     
 public:
     SoundSwitcher(i2s_pin_config_t config, MicType pMicType);
+
+    int i2s_read_Bytes(i2s_port_t, int32_t[256], unsigned int, TickType_t);
     
     void begin(uint16_t switchThreshold, Hysteresis hysteresis, uint32_t updateIntervalMs, uint32_t delayTimeMs);
     FeedResponse feed();
