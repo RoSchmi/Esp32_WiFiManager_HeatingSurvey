@@ -11,6 +11,8 @@
 #include "esp_task_wdt.h"
 #include <rom/rtc.h>
 
+#include "SoundSwitcher.h"
+
 // Default Esp32 stack size of 8192 byte is not enough for this application.
 // --> configure stack size dynamically from code to 16384
 // https://community.platformio.org/t/esp32-stack-configuration-reloaded/20994/4
@@ -46,6 +48,66 @@ MicType usedMicType = (USED_MICROPHONE == 0) ? MicType::SPH0645LM4H : MicType::I
 // function forward declarations
 void print_reset_reason(RESET_REASON reason);
 
+// Here: Begin of WiFi Manager definitions
+//***************************************************************
+
+
+#if !( defined(ESP8266) ||  defined(ESP32) )
+  #error This code is intended to run on the ESP8266 or ESP32 platform! Please check your Tools->Board setting.
+#endif
+
+#define ESP_ASYNC_WIFIMANAGER_VERSION_MIN_TARGET     "ESPAsync_WiFiManager v1.9.2"
+
+// Use from 0 to 4. Higher number, more debugging messages and memory usage.
+#define _ESPASYNC_WIFIMGR_LOGLEVEL_    0
+
+//For ESP32, To use ESP32 Dev Module, QIO, Flash 4MB/80MHz, Upload 921600
+
+//Ported to ESP32
+#ifdef ESP32
+  #include <esp_wifi.h>
+  #include <WiFi.h>
+  #include <WiFiClient.h>
+
+  // From v1.1.1
+  #include <WiFiMulti.h>
+  WiFiMulti wifiMulti;
+
+  // LittleFS has higher priority than SPIFFS
+  #if ( ARDUINO_ESP32C3_DEV )
+    // Currently, ESP32-C3 only supporting SPIFFS and EEPROM. Will fix to support LittleFS
+    #define USE_LITTLEFS          false
+    #define USE_SPIFFS            true
+  #else
+    #define USE_LITTLEFS    true
+    #define USE_SPIFFS      false
+  #endif
+
+  #if USE_LITTLEFS
+    // Use LittleFS
+    #include "FS.h"
+
+    // The library has been merged into esp32 core release 1.0.6
+    #include <LITTLEFS.h>             // https://github.com/lorol/LITTLEFS
+    
+    FS* filesystem =      &LITTLEFS;
+    #define FileFS        LITTLEFS
+    #define FS_Name       "LittleFS"
+  #elif USE_SPIFFS
+    #include <SPIFFS.h>
+    FS* filesystem =      &SPIFFS;
+    #define FileFS        SPIFFS
+    #define FS_Name       "SPIFFS"
+  #else
+    // Use FFat
+    #include <FFat.h>
+    FS* filesystem =      &FFat;
+    #define FileFS        FFat
+    #define FS_Name       "FFat"
+  #endif
+  //////
+
+  #define ESP_getChipId()   ((uint32_t)ESP.getEfuseMac())
 void setup()
 {
   // put your setup code here, to run once:
@@ -123,6 +185,33 @@ void* SpStart = NULL;
     ESP.restart();
   }
   Serial.printf("Selected Microphone Type = %s\r\n", (usedMicType == MicType::SPH0645LM4H) ? "SPH0645" : "INMP441");
+
+  delay(4000);
+
+  // If wanted -> Wait on press/release of boot button
+  /*
+  Serial.println(F("\r\n\r\nPress Boot Button to continue!"));
+  while (!buttonPressed)
+  {
+    delay(100);
+  }
+  */
+  // Wait some time (3000 ms)
+  uint32_t start = millis();
+  while ((millis() - start) < 3000)
+  {
+    delay(10);
+  }
+  
+  Serial.print(F("\nStarting Async_ConfigOnStartup using ")); Serial.print(FS_Name);
+  Serial.print(F(" on ")); Serial.println(ARDUINO_BOARD);
+  Serial.println(ESP_ASYNC_WIFIMANAGER_VERSION);
+
+  if ( String(ESP_ASYNC_WIFIMANAGER_VERSION) < ESP_ASYNC_WIFIMANAGER_VERSION_MIN_TARGET )
+  {
+    Serial.print("Warning. Must use this example on Version later than : ");
+    Serial.println(ESP_ASYNC_WIFIMANAGER_VERSION_MIN_TARGET);
+  }
 
 
 
