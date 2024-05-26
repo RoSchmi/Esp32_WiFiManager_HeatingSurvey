@@ -13,32 +13,32 @@
 
 
 #include "CloudStorageAccount.h"
-/*
+
 #include "TableClient.h"
 #include "TableEntityProperty.h"
 #include "TableEntity.h"
 #include "AnalogTableEntity.h"
 #include "OnOffTableEntity.h"
-*/
+
 
 #include "NTPClient_Generic.h"
-#include "Timezone_Generic.h"
-#include "WiFi.h"
+//#include "Timezone_Generic.h"
+//#include "WiFi.h"
 //#include "WiFiClientSecure.h"
 #include "WiFiUdp.h"
 #include "WiFiClient.h"
 #include "HTTPClient.h"
 
-/*
+
 #include "DataContainerWio.h"
 #include "OnOffDataContainerWio.h"
 #include "OnOffSwitcherWio.h"
-*/
+
 #include "SoundSwitcher.h"
-/*
-#include "ImuManagerWio.h"
+
+//#include "ImuManagerWio.h"
 #include "AnalogSensorMgr.h"
-*/
+
 
 #include "Rs_TimeNameHelper.h"
 
@@ -57,10 +57,10 @@
 // Allocate memory space in memory segment .dram0.bss, ptr to this memory space is later
 // passed to TableClient (is used there as the place for some buffers to preserve stack )
 
-/*
+
 uint8_t bufferStore[4000] {0};
 uint8_t * bufferStorePtr = &bufferStore[0];
-*/
+
 
 // Used to keep book of used stack
 void * StackPtrAtStart;
@@ -80,14 +80,14 @@ uint8_t lastResetCause = 0;
 #define GPIOPin 0
 bool buttonPressed = false;
 
-/*
+
 const char analogTableName[45] = ANALOG_TABLENAME;
 
 const char OnOffTableName_1[45] = ON_OFF_TABLENAME_01;
 const char OnOffTableName_2[45] = ON_OFF_TABLENAME_02;
 const char OnOffTableName_3[45] = ON_OFF_TABLENAME_03;
 const char OnOffTableName_4[45] = ON_OFF_TABLENAME_04;
-*/
+
 
 // The PartitionKey for the analog table may have a prefix to be distinguished, here: "Y2_" 
 const char * analogTablePartPrefix = (char *)ANALOG_TABLE_PART_PREFIX;
@@ -117,10 +117,11 @@ X509Certificate myX509Certificate = baltimore_root_ca;
 
 // Init the Secure client object
 
+
 #if TRANSPORT_PROTOCOL == 1
     static WiFiClientSecure wifi_client;
   #else
-    static WiFiClient wifi_client;
+   // static WiFiClient wifi_client;
   #endif
 
   // A UDP instance to let us send and receive packets over UDP
@@ -130,12 +131,12 @@ X509Certificate myX509Certificate = baltimore_root_ca;
   HTTPClient http;
   
   // Ptr to HTTPClient
-  static HTTPClient * httpPtr = &http;
+static HTTPClient * httpPtr = &http;
   
 // Define Datacontainer with SendInterval and InvalidateInterval as defined in config.h
 int sendIntervalSeconds = (SENDINTERVAL_MINUTES * 60) < 1 ? 1 : (SENDINTERVAL_MINUTES * 60);
 
-/*
+
 DataContainerWio dataContainer(TimeSpan(sendIntervalSeconds), TimeSpan(0, 0, INVALIDATEINTERVAL_MINUTES % 60, 0), (float)MIN_DATAVALUE, (float)MAX_DATAVALUE, (float)MAGIC_NUMBER_INVALID);
 
 AnalogSensorMgr analogSensorMgr(MAGIC_NUMBER_INVALID);
@@ -145,7 +146,7 @@ OnOffDataContainerWio onOffDataContainer;
 
 OnOffSwitcherWio onOffSwitcherWio;
 
-*/
+
 
 // Possible configuration for Adafruit Huzzah Esp32
 static const i2s_pin_config_t pin_config_Adafruit_Huzzah_Esp32 = {
@@ -194,7 +195,7 @@ int32_t sysTimeNtpDelta = 0;
 
   DateTime dateTimeUTCNow;    // Seconds since 2000-01-01 08:00:00
 
-  Timezone myTimezone;
+  //Timezone myTimezone;
 
 // Set transport protocol as defined in config.h
 static bool UseHttps_State = TRANSPORT_PROTOCOL == 0 ? false : true;
@@ -217,8 +218,8 @@ char sSwiThresholdStr[6] = SOUNDSWITCHER_THRESHOLD;
 #define SoundSwitcherThresholdString_Label "sSwiThresholdStr"
 
 // Function Prototypes for WiFiManager
-//bool readConfigFile();
-//bool writeConfigFile();
+bool readConfigFile();
+bool writeConfigFile();
 
 // Note: AzureAccountName and azureccountKey will be changed later in setup
 CloudStorageAccount myCloudStorageAccount(azureAccountName, azureAccountKey, UseHttps_State);
@@ -233,6 +234,21 @@ void GPIOPinISR()
 
 // function forward declarations
 void print_reset_reason(RESET_REASON reason);
+void scan_WIFI();
+boolean connect_Wifi(const char * ssid, const char * password);
+String floToStr(float value);
+float ReadAnalogSensor(int pSensorIndex);
+void createSampleTime(DateTime dateTimeUTCNow, int timeZoneOffsetUTC, char * sampleTime);
+az_http_status_code  createTable(CloudStorageAccount * myCloudStorageAccountPtr, X509Certificate pCaCert, const char * tableName);
+az_http_status_code insertTableEntity(CloudStorageAccount *myCloudStorageAccountPtr,X509Certificate pCaCert, const char * pTableName, TableEntity pTableEntity, char * outInsertETag);
+void makePartitionKey(const char * partitionKeyprefix, bool augmentWithYear, DateTime dateTime, az_span outSpan, size_t *outSpanLength);
+void makeRowKey(DateTime actDate, az_span outSpan, size_t *outSpanLength);
+int getDayNum(const char * day);
+int getMonNum(const char * month);
+int getWeekOfMonthNum(const char * weekOfMonth);
+
+
+
 
 // Here: Begin of WiFi Manager definitions
 //***************************************************************
@@ -493,15 +509,15 @@ typedef struct
 WiFi_AP_IPConfig  WM_AP_IPconfig;
 WiFi_STA_IPConfig WM_STA_IPconfig;
 
-/*
+
 void initAPIPConfigStruct(WiFi_AP_IPConfig &in_WM_AP_IPconfig)
 {
   in_WM_AP_IPconfig._ap_static_ip   = APStaticIP;
   in_WM_AP_IPconfig._ap_static_gw   = APStaticGW;
   in_WM_AP_IPconfig._ap_static_sn   = APStaticSN;
 }
-*/
-/*
+
+
 void initSTAIPConfigStruct(WiFi_STA_IPConfig &in_WM_STA_IPconfig)
 {
   in_WM_STA_IPconfig._sta_static_ip   = stationIP;
@@ -512,8 +528,8 @@ void initSTAIPConfigStruct(WiFi_STA_IPConfig &in_WM_STA_IPconfig)
   in_WM_STA_IPconfig._sta_static_dns2 = dns2IP;
 #endif
 }
-*/
-/*
+
+
 void displayIPConfigStruct(WiFi_STA_IPConfig in_WM_STA_IPconfig)
 {
   LOGERROR3(F("stationIP ="), in_WM_STA_IPconfig._sta_static_ip, ", gatewayIP =", in_WM_STA_IPconfig._sta_static_gw);
@@ -522,7 +538,7 @@ void displayIPConfigStruct(WiFi_STA_IPConfig in_WM_STA_IPconfig)
   LOGERROR3(F("dns1IP ="), in_WM_STA_IPconfig._sta_static_dns1, ", dns2IP =", in_WM_STA_IPconfig._sta_static_dns2);
 #endif
 }
-*/
+
 
 /*
 void configWiFi(WiFi_STA_IPConfig in_WM_STA_IPconfig)
@@ -645,7 +661,7 @@ int calcChecksum(uint8_t* address, uint16_t sizeToCalc)
   return checkSum;
 }
 
-/*
+
 bool loadConfigData()
 {
   File file = FileFS.open(CONFIG_FILENAME, "r");
@@ -688,9 +704,9 @@ bool loadConfigData()
     return false;
   }
 }
-*/
 
-/*
+
+
 void saveConfigData()
 {
   File file = FileFS.open(CONFIG_FILENAME, "w");
@@ -714,9 +730,9 @@ void saveConfigData()
     LOGERROR(F("failed"));
   }
 }
-*/
 
-/*
+
+
 bool readConfigFile()
 {
   // this opens the config file in read-mode
@@ -782,9 +798,9 @@ bool readConfigFile()
   Serial.println(F("\nConfig file was successfully parsed")); 
   return true;
 }
-*/
 
-/*
+
+
 bool writeConfigFile()
 {
   Serial.println(F("Saving config file"));
@@ -826,7 +842,7 @@ bool writeConfigFile()
   Serial.println(F("\nConfig file was successfully saved"));
   return true;
 }
-*/
+
   
 void setup()
 {
@@ -985,21 +1001,21 @@ void* SpStart = NULL;
   unsigned long startedAt = millis();
 
   // New in v1.4.0
-  /*
+  
   initAPIPConfigStruct(WM_AP_IPconfig);
   initSTAIPConfigStruct(WM_STA_IPconfig);
-  */
+  
   //////
   
-  /*
+  
   if (!readConfigFile())
   {
     Serial.println(F("Failed to read ConfigFile, using default values"));
   }
-  */
+  
   //Local intialization. Once its business is done, there is no need to keep it around
   // Use this to default DHCP hostname to ESP8266-XXXXXX or ESP32-XXXXXX
-  //ESPAsync_WiFiManager ESPAsync_wifiManager(&webServer, &dnsServer);
+  // ESPAsync_WiFiManager ESPAsync_wifiManager(&webServer, &dnsServer);
   // Use this to personalize DHCP hostname (RFC952 conformed)
 
   AsyncWebServer webServer(HTTP_PORT);
@@ -1089,8 +1105,297 @@ ESPAsync_wifiManager.setMinimumSignalQuality(-1);
     //Remove this line if you do not want to see WiFi password printed
     Serial.println(F("Got ESP Self-Stored Credentials. Timeout 60s for Config Portal"));
   }
+   if (loadConfigData())
+  {
+    configDataLoaded = true;
+    
+    ESPAsync_wifiManager.setConfigPortalTimeout(60); //If no access point name has been previously entered disable timeout.
+    Serial.println(F("Got stored Credentials. Timeout 60s for Config Portal"));
+
+#if USE_ESP_WIFIMANAGER_NTP      
+    if ( strlen(WM_config.TZ_Name) > 0 )
+    {
+      LOGERROR3(F("Current TZ_Name ="), WM_config.TZ_Name, F(", TZ = "), WM_config.TZ);
+
+  #if ESP8266
+      configTime(WM_config.TZ, "pool.ntp.org"); 
+  #else
+      //configTzTime(WM_config.TZ, "pool.ntp.org" );
+      configTzTime(WM_config.TZ, "time.nist.gov", "0.pool.ntp.org", "1.pool.ntp.org");
+  #endif   
+    }
+    else
+    {
+      Serial.println(F("Current Timezone is not set. Enter Config Portal to set."));
+    } 
+#endif
+  }
+  else
+  {
+    // Enter CP only if no stored SSID on flash and file 
+    Serial.println(F("Open Config Portal without Timeout: No stored Credentials."));
+    initialConfig = true;
+  }
+  
+   //RoSchmi must always be true in this App 
+  initialConfig = true;
+
+   if (initialConfig)
+  {
+    Serial.print(F("Starting configuration portal @ "));
+    
+#if USE_CUSTOM_AP_IP    
+    Serial.print(APStaticIP);
+#else
+    Serial.print(F("192.168.4.1"));
+#endif
+
+    Serial.print(F(", SSID = "));
+    Serial.print(ssid);
+    Serial.print(F(", PWD = "));
+    Serial.println(password);
+
+    digitalWrite(LED_BUILTIN, LED_ON); // Turn led on as we are in configuration mode.
+
+    //sets timeout in seconds until configuration portal gets turned off.
+    //If not specified device will remain in configuration mode until
+    //switched off via webserver or device is restarted.
+    //ESPAsync_wifiManager.setConfigPortalTimeout(600);
+
+    // Starts an access point
+    if (!ESPAsync_wifiManager.startConfigPortal((const char *) ssid.c_str(), password.c_str()))
+      Serial.println(F("Not connected to WiFi but continuing anyway."));
+    else
+    {
+      Serial.println(F("WiFi connected...yeey :)"));
+    }
+     // Stored  for later usage, from v1.1.0, but clear first
+    memset(&WM_config, 0, sizeof(WM_config));
+    
+    for (uint8_t i = 0; i < NUM_WIFI_CREDENTIALS; i++)
+    {
+      String tempSSID = ESPAsync_wifiManager.getSSID(i);
+      String tempPW   = ESPAsync_wifiManager.getPW(i);
+  
+      if (strlen(tempSSID.c_str()) < sizeof(WM_config.WiFi_Creds[i].wifi_ssid) - 1)
+        strcpy(WM_config.WiFi_Creds[i].wifi_ssid, tempSSID.c_str());
+      else
+        strncpy(WM_config.WiFi_Creds[i].wifi_ssid, tempSSID.c_str(), sizeof(WM_config.WiFi_Creds[i].wifi_ssid) - 1);
+
+      if (strlen(tempPW.c_str()) < sizeof(WM_config.WiFi_Creds[i].wifi_pw) - 1)
+        strcpy(WM_config.WiFi_Creds[i].wifi_pw, tempPW.c_str());
+      else
+        strncpy(WM_config.WiFi_Creds[i].wifi_pw, tempPW.c_str(), sizeof(WM_config.WiFi_Creds[i].wifi_pw) - 1);  
+
+      // Don't permit NULL SSID and password len < MIN_AP_PASSWORD_SIZE (8)
+      if ( (String(WM_config.WiFi_Creds[i].wifi_ssid) != "") && (strlen(WM_config.WiFi_Creds[i].wifi_pw) >= MIN_AP_PASSWORD_SIZE) )
+      {
+        LOGERROR3(F("* Add SSID = "), WM_config.WiFi_Creds[i].wifi_ssid, F(", PW = "), WM_config.WiFi_Creds[i].wifi_pw );
+        wifiMulti.addAP(WM_config.WiFi_Creds[i].wifi_ssid, WM_config.WiFi_Creds[i].wifi_pw);
+      }
+    }
+    #if USE_ESP_WIFIMANAGER_NTP      
+    String tempTZ   = ESPAsync_wifiManager.getTimezoneName();
+
+    if (strlen(tempTZ.c_str()) < sizeof(WM_config.TZ_Name) - 1)
+      strcpy(WM_config.TZ_Name, tempTZ.c_str());
+    else
+      strncpy(WM_config.TZ_Name, tempTZ.c_str(), sizeof(WM_config.TZ_Name) - 1);
+
+    const char * TZ_Result = ESPAsync_wifiManager.getTZ(WM_config.TZ_Name);
+    
+    if (strlen(TZ_Result) < sizeof(WM_config.TZ) - 1)
+      strcpy(WM_config.TZ, TZ_Result);
+    else
+      strncpy(WM_config.TZ, TZ_Result, sizeof(WM_config.TZ_Name) - 1);
+         
+    if ( strlen(WM_config.TZ_Name) > 0 )
+    {
+      LOGERROR3(F("Saving current TZ_Name ="), WM_config.TZ_Name, F(", TZ = "), WM_config.TZ);
+
+#if ESP8266
+      configTime(WM_config.TZ, "pool.ntp.org"); 
+#else
+      //configTzTime(WM_config.TZ, "pool.ntp.org" );
+      configTzTime(WM_config.TZ, "time.nist.gov", "0.pool.ntp.org", "1.pool.ntp.org");
+#endif
+    }
+    else
+    {
+      LOGERROR(F("Current Timezone Name is not set. Enter Config Portal to set."));
+    }
+#endif
+     // New in v1.4.0
+    ESPAsync_wifiManager.getSTAStaticIPConfig(WM_STA_IPconfig);
+    //////
+    
+    saveConfigData();
+  }
+  // Getting posted form values and overriding local variables parameters
+  // Config file is written regardless the connection state 
+  strcpy(azureAccountName, p_azureAccountName.getValue());
+  if (strlen(p_azureAccountKey.getValue()) > 1)
+  {
+    strcpy(azureAccountKey, p_azureAccountKey.getValue());
+  }
+  strcpy(sSwiThresholdStr, p_soundSwitcherThreshold.getValue());
+    
+    // Writing JSON config file to flash for next boot
+
+  writeConfigFile();
+
+  digitalWrite(LED_BUILTIN, LED_OFF); // Turn led off as we are not in configuration mode.
+
+  startedAt = millis();
+
+  // Azure Acount must be updated here with eventually changed values from WiFi-Manager
+  myCloudStorageAccount.ChangeAccountParams((char *)azureAccountName, (char *)azureAccountKey, UseHttps_State);
+  
+  #if WORK_WITH_WATCHDOG == 1
+    // Start watchdog with 20 seconds
+    if (esp_task_wdt_init(20, true) == ESP_OK)
+    {
+      Serial.println(F("\r\nWatchdog enabled with interval of 20 sec\r\n"));
+    }
+    else
+    {
+      Serial.println(F("Failed to enable watchdog"));
+    }
+    esp_task_wdt_add(NULL);
+
+    //https://www.az-delivery.de/blogs/azdelivery-blog-fur-arduino-und-raspberry-pi/watchdog-und-heartbeat
+
+    //https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/system/wdts.html
+  #endif
+
+  if (WiFi.status() == WL_CONNECTED)
+  {
+    Serial.print(F("connected. Local IP: "));
+    Serial.println(WiFi.localIP());
+  }
+  else
+  {
+    Serial.println(ESPAsync_wifiManager.getStatus(WiFi.status()));
+    #if WORK_WITH_WATCHDOG == 1
+      while (true)  // Wait to be rebooted by watchdog
+      {
+        delay(100);
+      }
+    #endif
+  }
+  soundSwitcher.begin(atoi((char *)sSwiThresholdStr), Hysteresis::Percent_10, soundSwitcherUpdateInterval, soundSwitcherReadDelayTime);
+  soundSwitcher.SetCalibrationParams(-20.0);  // optional
+  soundSwitcher.SetActive();
+
+  //**************************************************************
+  onOffDataContainer.begin(DateTime(), OnOffTableName_1, OnOffTableName_2, OnOffTableName_3, OnOffTableName_4);
+  
+  // Initialize State of 4 On/Off-sensor representations 
+  // and of the inverter flags (Application specific)
+  for (int i = 0; i < 4; i++)
+  {
+    onOffDataContainer.PresetOnOffState(i, false, true);
+    onOffDataContainer.Set_OutInverter(i, true);
+    onOffDataContainer.Set_InputInverter(i, false);
+  }
+  //Initialize OnOffSwitcher (for tests and simulation)
+  onOffSwitcherWio.begin(TimeSpan(15 * 60));   // Toggle every 30 min
+  //onOffSwitcherWio.SetInactive();
+  onOffSwitcherWio.SetActive();
+  // Setting Daylightsavingtime. Enter values for your zone in file include/config.h
+  // Program aborts in some cases of invalid values
+
+  int dstWeekday = getDayNum(DST_START_WEEKDAY);
+  int dstMonth = getMonNum(DST_START_MONTH);
+  int dstWeekOfMonth = getWeekOfMonthNum(DST_START_WEEK_OF_MONTH);
+
+  //TimeChangeRule dstStart {DST_ON_NAME, (uint8_t)dstWeekOfMonth, (uint8_t)dstWeekday, (uint8_t)dstMonth, DST_START_HOUR, TIMEZONEOFFSET + DSTOFFSET};
+  
+  //bool firstTimeZoneDef_is_Valid = (dstWeekday == -1 || dstMonth == - 1 || dstWeekOfMonth == -1 || DST_START_HOUR > 23 ? true : DST_START_HOUR < 0 ? true : false) ? false : true;
+  
+  dstWeekday = getDayNum(DST_STOP_WEEKDAY);
+  dstMonth = getMonNum(DST_STOP_MONTH);
+  dstWeekOfMonth = getWeekOfMonthNum(DST_STOP_WEEK_OF_MONTH);
   
   
+  //TimeChangeRule stdStart {DST_OFF_NAME, (uint8_t)dstWeekOfMonth, (uint8_t)dstWeekday, (uint8_t)dstMonth, (uint8_t)DST_START_HOUR, (int)TIMEZONEOFFSET};
+
+  //bool secondTimeZoneDef_is_Valid = (dstWeekday == -1 || dstMonth == - 1 || dstWeekOfMonth == -1 || DST_STOP_HOUR > 23 ? true : DST_STOP_HOUR < 0 ? true : false) ? false : true;
+  /*
+  if (firstTimeZoneDef_is_Valid && secondTimeZoneDef_is_Valid)
+  {
+    myTimezone.setRules(dstStart, stdStart);
+  }
+  else
+  {
+    // If timezonesettings are not valid: -> take UTC and wait for ever  
+    TimeChangeRule stdStart {DST_OFF_NAME, (uint8_t)dstWeekOfMonth, (uint8_t)dstWeekday, (uint8_t)dstMonth, (uint8_t)DST_START_HOUR, (int)0};
+    myTimezone.setRules(stdStart, stdStart);
+    while (true)
+    {
+      Serial.println("Invalid DST Timezonesettings");
+      delay(5000);
+    }
+  }
+  */
+   Serial.println(F("Starting timeClient"));
+  timeClient.begin();
+  timeClient.setUpdateInterval((NTP_UPDATE_INTERVAL_MINUTES < 1 ? 1 : NTP_UPDATE_INTERVAL_MINUTES) * 60 * 1000);
+  // 'setRetryInterval' should not be too short, may be that short intervals lead to malfunction 
+  timeClient.setRetryInterval(20000);  // Try to read from NTP Server not more often than every 20 seconds
+  Serial.println("Using NTP Server " + timeClient.getPoolServerName());
+  
+  timeClient.update();
+  uint32_t counter = 0;
+  uint32_t maxCounter = 10;
+
+  while(!timeClient.updated() &&  counter++ <= maxCounter)
+  {
+    Serial.println(F("NTP FAILED: Trying again"));
+    delay(1000);
+    #if WORK_WITH_WATCHDOG == 1
+      esp_task_wdt_reset();
+    #endif
+    timeClient.update();
+  }
+  if (counter >= maxCounter)
+  {
+    while(true)
+    {
+      delay(500); //Wait for ever, could not get NTP time, eventually reboot by Watchdog
+    }
+  }
+
+  Serial.println("\r\n********UPDATED********");
+
+  Serial.println("UTC : " + timeClient.getFormattedUTCTime());
+  Serial.println("UTC : " + timeClient.getFormattedUTCDateTime());
+  Serial.println("LOC : " + timeClient.getFormattedTime());
+  Serial.println("LOC : " + timeClient.getFormattedDateTime());
+  Serial.println("UTC EPOCH : " + String(timeClient.getUTCEpochTime()));
+  Serial.println("LOC EPOCH : " + String(timeClient.getEpochTime()));
+
+  unsigned long utcTime = timeClient.getUTCEpochTime();  // Seconds since 1. Jan. 1970
+  
+  dateTimeUTCNow =  utcTime;
+
+  Serial.printf("%s %i %02d %02d %02d %02d", (char *)"UTC-Time is  :", dateTimeUTCNow.year(), 
+                                        dateTimeUTCNow.month() , dateTimeUTCNow.day(),
+                                        dateTimeUTCNow.hour() , dateTimeUTCNow.minute());
+  Serial.println("");
+
+  //DateTime localTime = myTimezone.toLocal(dateTimeUTCNow.unixtime());
+  DateTime localTime = dateTimeUTCNow.operator+(TimeSpan(0,2,0,0));
+  
+  Serial.printf("%s %i %02d %02d %02d %02d", (char *)"Local-Time is:", localTime.year(), 
+                                        localTime.month() , localTime.day(),
+                                        localTime.hour() , localTime.minute());
+  Serial.println("");
+
+  analogSensorMgr.SetReadInterval(ANALOG_SENSOR_READ_INTERVAL_SECONDS);
+
+  
+
 
   // Disable watchdog
   // volatile int wdt_State = esp_task_wdt_status(NULL);
@@ -1122,6 +1427,103 @@ void loop()
   {
     delay(1000);
   }
+}
+
+// To manage daylightsavingstime stuff convert input ("Last", "First", "Second", "Third", "Fourth") to int equivalent
+int getWeekOfMonthNum(const char * weekOfMonth)
+{
+  for (int i = 0; i < 5; i++)
+  {  
+    if (strcmp((char *)timeNameHelper.weekOfMonth[i], weekOfMonth) == 0)
+    {
+      return i;
+    }   
+  }
+  return -1;
+}
+
+int getMonNum(const char * month)
+{
+  for (int i = 0; i < 12; i++)
+  {  
+    if (strcmp((char *)timeNameHelper.monthsOfTheYear[i], month) == 0)
+    {
+      return i + 1;
+    }   
+  }
+  return -1;
+}
+
+int getDayNum(const char * day)
+{
+  for (int i = 0; i < 7; i++)
+  {  
+    if (strcmp((char *)timeNameHelper.daysOfTheWeek[i], day) == 0)
+    {
+      return i + 1;
+    }   
+  }
+  return -1;
+}
+
+
+
+az_http_status_code createTable(CloudStorageAccount *pAccountPtr, X509Certificate pCaCert, const char * pTableName)
+{ 
+
+  #if TRANSPORT_PROTOCOL == 1
+    static WiFiClientSecure wifi_client;
+  #else
+    static WiFiClient wifi_client;
+  #endif
+
+    #if TRANSPORT_PROTOCOL == 1
+    wifi_client.setCACert(myX509Certificate);
+    //wifi_client.setCACert(baltimore_corrupt_root_ca);
+  #endif
+
+  #if WORK_WITH_WATCHDOG == 1
+      esp_task_wdt_reset();
+  #endif
+
+  TableClient table(pAccountPtr, pCaCert,  httpPtr, &wifi_client, bufferStorePtr);
+
+  // Create Table
+  az_http_status_code statusCode = table.CreateTable(pTableName, dateTimeUTCNow, ContType::contApplicationIatomIxml, AcceptType::acceptApplicationIjson, returnContent, false);
+  
+   // RoSchmi for tests: to simulate failed upload
+   //az_http_status_code   statusCode = AZ_HTTP_STATUS_CODE_UNAUTHORIZED;
+
+  char codeString[35] {0};
+  if ((statusCode == AZ_HTTP_STATUS_CODE_CONFLICT) || (statusCode == AZ_HTTP_STATUS_CODE_CREATED))
+  {
+    #if WORK_WITH_WATCHDOG == 1
+      esp_task_wdt_reset();
+    #endif
+   
+      sprintf(codeString, "%s %i", "Table available: ", az_http_status_code(statusCode));
+      #if SERIAL_PRINT == 1
+        Serial.println((char *)codeString);
+      #endif
+  
+  }
+  else
+  {
+    
+    
+      sprintf(codeString, "%s %i", "Table Creation failed: ", az_http_status_code(statusCode));
+      #if SERIAL_PRINT == 1   
+        Serial.println((char *)codeString);
+      #endif
+ 
+    delay(1000);
+
+    ESP.restart();
+    
+  }
+  
+
+return statusCode;
 }
 
 
