@@ -70,6 +70,104 @@
   #define TZ_DEBUG       false
 #endif
 
+#if defined(ESP32)
+
+  #if ( ARDUINO_ESP32C3_DEV )
+    // https://github.com/espressif/arduino-esp32/blob/master/cores/esp32/esp32-hal-gpio.c
+    #warning ESP32-C3 boards not fully supported yet. Only SPIFFS and EEPROM OK. Tempo esp32_adc2gpio to be replaced
+    const int8_t esp32_adc2gpio[20] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20};
+    #warning Using ESP32-C3
+  #endif
+
+  #if ( ARDUINO_ESP32C3_DEV )
+    // Currently, ESP32-C3 only supporting SPIFFS and EEPROM. Will fix to support LittleFS
+    #ifdef USE_LITTLEFS
+      #undef USE_LITTLEFS
+    #endif
+    #define USE_LITTLEFS          false
+  #endif
+
+  #if defined(TZ_USE_ESP32)
+    #undef TZ_USE_ESP32
+  #endif
+  #define TZ_USE_ESP32     true
+  
+  #if defined(TZ_USE_EEPROM)
+    #undef TZ_USE_EEPROM
+  #endif
+  #define TZ_USE_EEPROM    false
+  
+  #ifndef USE_LITTLEFS
+    #define USE_LITTLEFS   true
+  #endif
+  
+  #if USE_LITTLEFS
+    // Use LittleFS
+    #include "FS.h"
+    
+    // Check cores/esp32/esp_arduino_version.h and cores/esp32/core_version.h
+    //#if ( ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(2, 0, 0) )  //(ESP_ARDUINO_VERSION_MAJOR >= 2)
+    #if ( defined(ESP_ARDUINO_VERSION_MAJOR) && (ESP_ARDUINO_VERSION_MAJOR >= 2) )
+      #if (_TZ_LOGLEVEL_ > 2)
+        #warning Using ESP32 Core 1.0.6 or 2.0.0+
+      #endif
+      
+      // The library has been merged into esp32 core from release 1.0.6
+      #include <LittleFS.h>
+      
+      #define FileFS        LittleFS
+    #else
+      #if (_TZ_LOGLEVEL_ > 2)
+        #warning Using ESP32 Core 1.0.5-. You must install LITTLEFS library
+      #endif
+      
+      // The library has been merged into esp32 core from release 1.0.6
+      #include <LITTLEFS.h>             // https://github.com/lorol/LITTLEFS
+      
+      #define FileFS        LITTLEFS
+    #endif
+
+  #else
+    // Use SPIFFS
+   #include "FS.h"
+    #include <SPIFFS.h>
+
+    #define FileFS        SPIFFS
+  #endif
+
+//////////////////////////////////////////////////////////////
+
+#elif defined(ESP8266)
+  #if defined(TZ_USE_ESP8266)
+    #undef TZ_USE_ESP8266
+  #endif
+  #define TZ_USE_ESP8266     true
+  
+  #if defined(TZ_USE_EEPROM)
+    #undef TZ_USE_EEPROM
+  #endif
+  #define TZ_USE_EEPROM    false
+  
+  #ifndef USE_LITTLEFS
+    #define USE_LITTLEFS   true
+  #endif
+  
+  #include <FS.h>
+  #include <LittleFS.h>
+  
+   #if USE_LITTLEFS   
+    #define FileFS        LittleFS 
+  #else
+    #define FileFS        SPIFFS
+  #endif
+
+#elif ( defined(ARDUINO_SAM_DUE) || defined(__SAM3X8E__) )
+  #warning Use Arduino_Sam_Due
+#else
+    #warning Use Unknown board and EEPROM
+  #endif  
+
+
 /*----------------------------------------------------------------------*
    Create a Timezone object from the given time change rules.
   ----------------------------------------------------------------------*/
