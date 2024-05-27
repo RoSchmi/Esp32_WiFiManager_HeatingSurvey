@@ -22,7 +22,7 @@
 
 
 #include "NTPClient_Generic.h"
-//#include "Timezone_Generic.h"
+#include "Timezone_Generic.h"
 //#include "WiFi.h"
 //#include "WiFiClientSecure.h"
 #include "WiFiUdp.h"
@@ -36,7 +36,7 @@
 
 #include "SoundSwitcher.h"
 
-//#include "ImuManagerWio.h"
+#include "ImuManagerWio.h"
 #include "AnalogSensorMgr.h"
 
 
@@ -146,8 +146,6 @@ OnOffDataContainerWio onOffDataContainer;
 
 OnOffSwitcherWio onOffSwitcherWio;
 
-
-
 // Possible configuration for Adafruit Huzzah Esp32
 static const i2s_pin_config_t pin_config_Adafruit_Huzzah_Esp32 = {
     .bck_io_num = 14,                   // BCKL
@@ -162,8 +160,6 @@ static const i2s_pin_config_t pin_config_Esp32_dev = {
     .data_out_num = I2S_PIN_NO_CHANGE,  // not used (only for speakers)
     .data_in_num = 22                   // DOUT
 };
-
-
 
 MicType usedMicType = (USED_MICROPHONE == 0) ? MicType::SPH0645LM4H : MicType::INMP441;
 
@@ -195,7 +191,7 @@ int32_t sysTimeNtpDelta = 0;
 
   DateTime dateTimeUTCNow;    // Seconds since 2000-01-01 08:00:00
 
-  //Timezone myTimezone;
+  Timezone myTimezone;
 
 // Set transport protocol as defined in config.h
 static bool UseHttps_State = TRANSPORT_PROTOCOL == 0 ? false : true;
@@ -640,6 +636,90 @@ uint8_t connectMultiWiFi()
 }
 */
 
+uint8_t connectMultiWiFi()
+{
+#if ESP32
+  // For ESP32, this better be 0 to shorten the connect time.
+  // For ESP32-S2/C3, must be > 500
+  #if ( USING_ESP32_S2 || USING_ESP32_C3 )
+    #define WIFI_MULTI_1ST_CONNECT_WAITING_MS           500L
+  #else
+    // For ESP32 core v1.0.6, must be >= 500
+    #define WIFI_MULTI_1ST_CONNECT_WAITING_MS           800L
+  #endif
+#else
+  // For ESP8266, this better be 2200 to enable connect the 1st time
+  #define WIFI_MULTI_1ST_CONNECT_WAITING_MS             2200L
+#endif
+
+#define WIFI_MULTI_CONNECT_WAITING_MS                   500L
+
+  uint8_t status;
+
+  //WiFi.mode(WIFI_STA);
+
+  LOGERROR(F("ConnectMultiWiFi with :"));
+
+  if ( (Router_SSID != "") && (Router_Pass != "") )
+  {
+    LOGERROR3(F("* Flash-stored Router_SSID = "), Router_SSID, F(", Router_Pass = "), Router_Pass );
+    LOGERROR3(F("* Add SSID = "), Router_SSID, F(", PW = "), Router_Pass );
+    wifiMulti.addAP(Router_SSID.c_str(), Router_Pass.c_str());
+  }
+
+  for (uint8_t i = 0; i < NUM_WIFI_CREDENTIALS; i++)
+  {
+    // Don't permit NULL SSID and password len < MIN_AP_PASSWORD_SIZE (8)
+    if ( (String(WM_config.WiFi_Creds[i].wifi_ssid) != "") && (strlen(WM_config.WiFi_Creds[i].wifi_pw) >= MIN_AP_PASSWORD_SIZE) )
+    {
+      LOGERROR3(F("* Additional SSID = "), WM_config.WiFi_Creds[i].wifi_ssid, F(", PW = "), WM_config.WiFi_Creds[i].wifi_pw );
+    }
+  }
+
+  LOGERROR(F("Connecting MultiWifi..."));
+
+  //WiFi.mode(WIFI_STA);
+
+#if !USE_DHCP_IP
+  // New in v1.4.0
+  configWiFi(WM_STA_IPconfig);
+  //////
+#endif
+
+  int i = 0;
+  status = wifiMulti.run();
+  delay(WIFI_MULTI_1ST_CONNECT_WAITING_MS);
+
+  while ( ( i++ < 20 ) && ( status != WL_CONNECTED ) )
+  {
+    status = WiFi.status();
+
+    if ( status == WL_CONNECTED )
+      break;
+    else
+      delay(WIFI_MULTI_CONNECT_WAITING_MS);
+  }
+
+  if ( status == WL_CONNECTED )
+  {
+    LOGERROR1(F("WiFi connected after time: "), i);
+    LOGERROR3(F("SSID:"), WiFi.SSID(), F(",RSSI="), WiFi.RSSI());
+    LOGERROR3(F("Channel:"), WiFi.channel(), F(",IP address:"), WiFi.localIP() );
+  }
+  else
+  {
+    LOGERROR(F("WiFi not connected"));
+ 
+#if ESP8266      
+    ESP.reset();
+#else
+    ESP.restart();
+#endif  
+  }
+
+  return status;
+}
+
 void toggleLED()
 {
   //toggle state
@@ -647,7 +727,85 @@ void toggleLED()
 }
 ///////////////////////////////////////////
 
+void heartBeatPrint()
+{
+#if USE_ESP_WIFIMANAGER_NTP
+  printLocalTime();
+#else
+  static int num = 1;
 
+  if (WiFi.status() == WL_CONNECTED)
+  {
+    //Serial.print(F("H"));        // H means connected to WiFi
+  }
+  else
+  {
+    //Serial.print(F("F"));        // F means not connected to WiFi
+  }
+
+  if (num == 80)
+  {
+    //Serial.println();
+    num = 1;
+  }
+  else if (num++ % 10 == 0)
+  {
+    //Serial.print(F(" "));
+  }
+#endif  
+}
+
+
+void check_WiFi()
+{
+  if ( (WiFi.status() != WL_CONNECTED) )
+  {
+    Serial.println(F("\nWiFi lost. Call connectMultiWiFi in loop"));
+    connectMultiWiFi();
+  }
+}
+
+void check_status()
+{
+  static ulong checkstatus_timeout  = 0;
+  static ulong LEDstatus_timeout    = 0;
+  static ulong checkwifi_timeout    = 0;
+
+  static ulong current_millis;
+
+#define WIFICHECK_INTERVAL    1000L
+
+#if USE_ESP_WIFIMANAGER_NTP
+  #define HEARTBEAT_INTERVAL    60000L
+#else
+  #define HEARTBEAT_INTERVAL    10000L
+#endif
+
+#define LED_INTERVAL          2000L
+
+  current_millis = millis();
+  
+  // Check WiFi every WIFICHECK_INTERVAL (1) seconds.
+  if ((current_millis > checkwifi_timeout) || (checkwifi_timeout == 0))
+  {
+    check_WiFi();
+    checkwifi_timeout = current_millis + WIFICHECK_INTERVAL;
+  }
+
+  if ((current_millis > LEDstatus_timeout) || (LEDstatus_timeout == 0))
+  {
+    // Toggle LED at LED_INTERVAL = 2s
+    toggleLED();
+    LEDstatus_timeout = current_millis + LED_INTERVAL;
+  }
+
+  // Print hearbeat every HEARTBEAT_INTERVAL (10) seconds.
+  if ((current_millis > checkstatus_timeout) || (checkstatus_timeout == 0))
+  {
+    heartBeatPrint();
+    checkstatus_timeout = current_millis + HEARTBEAT_INTERVAL;
+  }
+}
 
 int calcChecksum(uint8_t* address, uint16_t sizeToCalc)
 {
@@ -858,9 +1016,6 @@ void* SpStart = NULL;
 
   __unused uint32_t minFreeHeap = esp_get_minimum_free_heap_size();
   uint32_t freeHeapSize = esp_get_free_heap_size();
-  
-
-
   
   resetReason_0 = rtc_get_reset_reason(0);
   resetReason_1 = rtc_get_reset_reason(1);
@@ -1309,19 +1464,19 @@ ESPAsync_wifiManager.setMinimumSignalQuality(-1);
   int dstMonth = getMonNum(DST_START_MONTH);
   int dstWeekOfMonth = getWeekOfMonthNum(DST_START_WEEK_OF_MONTH);
 
-  //TimeChangeRule dstStart {DST_ON_NAME, (uint8_t)dstWeekOfMonth, (uint8_t)dstWeekday, (uint8_t)dstMonth, DST_START_HOUR, TIMEZONEOFFSET + DSTOFFSET};
+  TimeChangeRule dstStart {DST_ON_NAME, (uint8_t)dstWeekOfMonth, (uint8_t)dstWeekday, (uint8_t)dstMonth, DST_START_HOUR, TIMEZONEOFFSET + DSTOFFSET};
   
-  //bool firstTimeZoneDef_is_Valid = (dstWeekday == -1 || dstMonth == - 1 || dstWeekOfMonth == -1 || DST_START_HOUR > 23 ? true : DST_START_HOUR < 0 ? true : false) ? false : true;
+  bool firstTimeZoneDef_is_Valid = (dstWeekday == -1 || dstMonth == - 1 || dstWeekOfMonth == -1 || DST_START_HOUR > 23 ? true : DST_START_HOUR < 0 ? true : false) ? false : true;
   
   dstWeekday = getDayNum(DST_STOP_WEEKDAY);
   dstMonth = getMonNum(DST_STOP_MONTH);
   dstWeekOfMonth = getWeekOfMonthNum(DST_STOP_WEEK_OF_MONTH);
   
   
-  //TimeChangeRule stdStart {DST_OFF_NAME, (uint8_t)dstWeekOfMonth, (uint8_t)dstWeekday, (uint8_t)dstMonth, (uint8_t)DST_START_HOUR, (int)TIMEZONEOFFSET};
+  TimeChangeRule stdStart {DST_OFF_NAME, (uint8_t)dstWeekOfMonth, (uint8_t)dstWeekday, (uint8_t)dstMonth, (uint8_t)DST_START_HOUR, (int)TIMEZONEOFFSET};
 
-  //bool secondTimeZoneDef_is_Valid = (dstWeekday == -1 || dstMonth == - 1 || dstWeekOfMonth == -1 || DST_STOP_HOUR > 23 ? true : DST_STOP_HOUR < 0 ? true : false) ? false : true;
-  /*
+  bool secondTimeZoneDef_is_Valid = (dstWeekday == -1 || dstMonth == - 1 || dstWeekOfMonth == -1 || DST_STOP_HOUR > 23 ? true : DST_STOP_HOUR < 0 ? true : false) ? false : true;
+  
   if (firstTimeZoneDef_is_Valid && secondTimeZoneDef_is_Valid)
   {
     myTimezone.setRules(dstStart, stdStart);
@@ -1337,7 +1492,7 @@ ESPAsync_wifiManager.setMinimumSignalQuality(-1);
       delay(5000);
     }
   }
-  */
+  
    Serial.println(F("Starting timeClient"));
   timeClient.begin();
   timeClient.setUpdateInterval((NTP_UPDATE_INTERVAL_MINUTES < 1 ? 1 : NTP_UPDATE_INTERVAL_MINUTES) * 60 * 1000);
@@ -1384,8 +1539,8 @@ ESPAsync_wifiManager.setMinimumSignalQuality(-1);
                                         dateTimeUTCNow.hour() , dateTimeUTCNow.minute());
   Serial.println("");
 
-  //DateTime localTime = myTimezone.toLocal(dateTimeUTCNow.unixtime());
-  DateTime localTime = dateTimeUTCNow.operator+(TimeSpan(0,2,0,0));
+  DateTime localTime = myTimezone.toLocal(dateTimeUTCNow.unixtime());
+  //DateTime localTime = dateTimeUTCNow.operator+(TimeSpan(0,2,0,0));
   
   Serial.printf("%s %i %02d %02d %02d %02d", (char *)"Local-Time is:", localTime.year(), 
                                         localTime.month() , localTime.day(),
@@ -1423,10 +1578,299 @@ ESPAsync_wifiManager.setMinimumSignalQuality(-1);
 
 void loop()
 {
+  /*
   while (true)
   {
     delay(1000);
   }
+  */
+check_status();
+  // put your main code here, to run repeatedly:
+  if (++loopCounter % 100000 == 0)   // Make decisions to send data every 100000 th round and toggle Led to signal that App is running
+  {
+    
+    ledState = !ledState;
+    digitalWrite(LED_BUILTIN, ledState);    // toggle LED to signal that App is running
+
+    #if WORK_WITH_WATCHDOG == 1
+      esp_task_wdt_reset();
+    #endif
+    
+      // Update RTC from Ntp when ntpUpdateInterval has expired, retry when RetryInterval has expired       
+      if (timeClient.update())
+      {                                                                      
+        dateTimeUTCNow = timeClient.getUTCEpochTime();
+        
+        timeNtpUpdateCounter++;
+
+        #if SERIAL_PRINT == 1
+          // Indicate that NTP time was updated         
+          char buffer[] = "NTP-Utc: YYYY-MM-DD hh:mm:ss";           
+          dateTimeUTCNow.toString(buffer);
+          Serial.println(buffer);
+        #endif
+      }  // End NTP stuff
+          
+      dateTimeUTCNow = timeClient.getUTCEpochTime();
+      
+      // Get offset in minutes between UTC and local time with consideration of DST
+      int timeZoneOffsetUTC = myTimezone.utcIsDST(dateTimeUTCNow.unixtime()) ? TIMEZONEOFFSET + DSTOFFSET : TIMEZONEOFFSET;
+      
+      DateTime localTime = myTimezone.toLocal(dateTimeUTCNow.unixtime());
+
+      // In the last 15 sec of each day we set a pulse to Off-State when we had On-State before
+      bool isLast15SecondsOfDay = (localTime.hour() == 23 && localTime.minute() == 59 &&  localTime.second() > 45) ? true : false;
+      
+      // Get readings from 4 differend analog sensors and store the values in a container     
+       
+      dataContainer.SetNewValue(0, dateTimeUTCNow, ReadAnalogSensor(0));
+      dataContainer.SetNewValue(1, dateTimeUTCNow, ReadAnalogSensor(1));
+      dataContainer.SetNewValue(2, dateTimeUTCNow, ReadAnalogSensor(2));
+      dataContainer.SetNewValue(3, dateTimeUTCNow, ReadAnalogSensor(3));
+
+      
+
+      // Check if automatic OnOfSwitcher has toggled (used to simulate on/off changes)
+      // and accordingly change the state of one representation (here index 0 and 1) in onOffDataContainer
+      if (onOffSwitcherWio.hasToggled(dateTimeUTCNow))
+      {
+        bool state = onOffSwitcherWio.GetState();
+        onOffDataContainer.SetNewOnOffValue(2, state, dateTimeUTCNow, timeZoneOffsetUTC);
+        onOffDataContainer.SetNewOnOffValue(3, !state, dateTimeUTCNow, timeZoneOffsetUTC);    
+      }
+        
+        
+        if (feedResult.isValid && (feedResult.hasToggled || feedResult.analogToSend))
+        {
+            if (feedResult.hasToggled)
+            {
+              onOffDataContainer.SetNewOnOffValue(0, feedResult.state, dateTimeUTCNow, timeZoneOffsetUTC);
+              Serial.print("\r\nHas toggled, new state is: ");
+              Serial.println(feedResult.state == true ? "High" : "Low");
+              Serial.println();
+            }
+            // if toogled activate make hasToBeSent flag
+            // so that the analog values have to be updated in the cloud
+            if (feedResult.analogToSend)
+            {
+              dataContainer.setHasToBeSentFlag();
+              Serial.print("Average is: ");
+              Serial.println(feedResult.avValue);             
+              Serial.println();
+            }           
+        }
+        
+      // Check if something is to do: send analog data ? send On/Off-Data ? Handle EndOfDay stuff ?
+      if (dataContainer.hasToBeSent() || onOffDataContainer.One_hasToBeBeSent(localTime) || isLast15SecondsOfDay)
+      {    
+        //Create some buffer
+        char sampleTime[25] {0};    // Buffer to hold sampletime        
+        char strData[100] {0};          // Buffer to hold display message
+        
+        char EtagBuffer[50] {0};    // Buffer to hold returned Etag
+
+        // Create az_span to hold partitionkey
+        char partKeySpan[25] {0};
+        size_t partitionKeyLength = 0;
+        az_span partitionKey = AZ_SPAN_FROM_BUFFER(partKeySpan);
+        
+        // Create az_span to hold rowkey
+        char rowKeySpan[25] {0};
+        size_t rowKeyLength = 0;
+        az_span rowKey = AZ_SPAN_FROM_BUFFER(rowKeySpan);
+
+        if (dataContainer.hasToBeSent())       // have to send analog values ?
+        {    
+          // Retrieve edited sample values from container
+          SampleValueSet sampleValueSet = dataContainer.getCheckedSampleValues(dateTimeUTCNow);
+                  
+          createSampleTime(sampleValueSet.LastUpdateTime, timeZoneOffsetUTC, (char *)sampleTime);
+
+          // Define name of the table (arbitrary name + actual year, like: AnalogTestValues2020)
+          String augmentedAnalogTableName = analogTableName; 
+          if (augmentTableNameWithYear)
+          {
+            augmentedAnalogTableName += (dateTimeUTCNow.year());     
+          }
+          
+          // Create Azure Storage Table if table doesn't exist
+          if (localTime.year() != dataContainer.Year)    // if new year
+          {  
+            az_http_status_code theResult = createTable(myCloudStorageAccountPtr, myX509Certificate, (char *)augmentedAnalogTableName.c_str());
+                     
+            if ((theResult == AZ_HTTP_STATUS_CODE_CONFLICT) || (theResult == AZ_HTTP_STATUS_CODE_CREATED))
+            {
+              dataContainer.Set_Year(localTime.year());                   
+            }
+            else
+            {
+              // Reset board if not successful
+             
+             //SCB_AIRCR = 0x05FA0004;             
+            }                     
+          }         
+          // Create an Array of (here) 5 Properties
+          // Each Property consists of the Name, the Value and the Type (here only Edm.String is supported)
+
+          // Besides PartitionKey and RowKey we have 5 properties to be stored in a table row
+          // (SampleTime and 4 samplevalues)
+          size_t analogPropertyCount = 5;
+          EntityProperty AnalogPropertiesArray[5];
+          AnalogPropertiesArray[0] = (EntityProperty)TableEntityProperty((char *)"SampleTime", (char *) sampleTime, (char *)"Edm.String");
+          AnalogPropertiesArray[1] = (EntityProperty)TableEntityProperty((char *)"T_1", (char *)floToStr(sampleValueSet.SampleValues[0].Value).c_str(), (char *)"Edm.String");
+          AnalogPropertiesArray[2] = (EntityProperty)TableEntityProperty((char *)"T_2", (char *)floToStr(sampleValueSet.SampleValues[1].Value).c_str(), (char *)"Edm.String");
+          AnalogPropertiesArray[3] = (EntityProperty)TableEntityProperty((char *)"T_3", (char *)floToStr(sampleValueSet.SampleValues[2].Value).c_str(), (char *)"Edm.String");
+          AnalogPropertiesArray[4] = (EntityProperty)TableEntityProperty((char *)"T_4", (char *)floToStr(sampleValueSet.SampleValues[3].Value).c_str(), (char *)"Edm.String");
+  
+          // Create the PartitionKey (special format)
+          makePartitionKey(analogTablePartPrefix, augmentPartitionKey, localTime, partitionKey, &partitionKeyLength);
+          partitionKey = az_span_slice(partitionKey, 0, partitionKeyLength);
+
+          // Create the RowKey (special format)        
+          makeRowKey(localTime, rowKey, &rowKeyLength);
+          
+          rowKey = az_span_slice(rowKey, 0, rowKeyLength);
+  
+          // Create TableEntity consisting of PartitionKey, RowKey and the properties named 'SampleTime', 'T_1', 'T_2', 'T_3' and 'T_4'
+          AnalogTableEntity analogTableEntity(partitionKey, rowKey, az_span_create_from_str((char *)sampleTime),  AnalogPropertiesArray, analogPropertyCount);
+          
+          #if SERIAL_PRINT == 1
+            Serial.printf("Trying to insert %u \r\n", insertCounterAnalogTable);
+          #endif  
+             
+          // Keep track of tries to insert and check for memory leak
+          insertCounterAnalogTable++;
+
+          // RoSchmi, Todo: event. include code to check for memory leaks here
+
+          // Store Entity to Azure Cloud   
+          __unused az_http_status_code insertResult =  insertTableEntity(myCloudStorageAccountPtr, myX509Certificate, (char *)augmentedAnalogTableName.c_str(), analogTableEntity, (char *)EtagBuffer);
+                 
+        }
+        // Now test if Send On/Off values or End of day stuff?
+        if (onOffDataContainer.One_hasToBeBeSent(localTime) || isLast15SecondsOfDay)
+        {        
+          OnOffSampleValueSet onOffValueSet = onOffDataContainer.GetOnOffValueSet();
+
+          for (int i = 0; i < 4; i++)    // Do for 4 OnOff-Tables  
+          {
+            DateTime lastSwitchTimeDate = DateTime(onOffValueSet.OnOffSampleValues[i].LastSwitchTime.year(), 
+                                                onOffValueSet.OnOffSampleValues[i].LastSwitchTime.month(), 
+                                                onOffValueSet.OnOffSampleValues[i].LastSwitchTime.day());
+
+            DateTime actTimeDate = DateTime(localTime.year(), localTime.month(), localTime.day());
+
+            if (onOffValueSet.OnOffSampleValues[i].hasToBeSent || ((onOffValueSet.OnOffSampleValues[i].actState == true) &&  (lastSwitchTimeDate.operator!=(actTimeDate))))
+            {
+              if (onOffValueSet.OnOffSampleValues[i].hasToBeSent)
+              {
+                onOffDataContainer.Reset_hasToBeSent(i);     
+                EntityProperty OnOffPropertiesArray[5];
+
+                // RoSchmi
+                TimeSpan  onTime = onOffValueSet.OnOffSampleValues[i].OnTimeDay;
+                if (lastSwitchTimeDate.operator!=(actTimeDate))
+                {
+                  onTime = TimeSpan(0);                 
+                  onOffDataContainer.Set_OnTimeDay(i, onTime);
+
+                  if (onOffValueSet.OnOffSampleValues[i].actState == true)
+                  {
+                    onOffDataContainer.Set_LastSwitchTime(i, actTimeDate);
+                  }
+                }
+                          
+              char OnTimeDay[15] = {0};
+              sprintf(OnTimeDay, "%03i-%02i:%02i:%02i", onTime.days(), onTime.hours(), onTime.minutes(), onTime.seconds());
+              createSampleTime(dateTimeUTCNow, timeZoneOffsetUTC, (char *)sampleTime);
+
+              // Tablenames come from the onOffValueSet, here usually the tablename is augmented with the actual year
+              String augmentedOnOffTableName = onOffValueSet.OnOffSampleValues[i].tableName;
+              if (augmentTableNameWithYear)
+              {               
+                augmentedOnOffTableName += (localTime.year()); 
+              }
+
+              // Create table if table doesn't exist
+              if (localTime.year() != onOffValueSet.OnOffSampleValues[i].Year)
+              {
+                 az_http_status_code theResult = createTable(myCloudStorageAccountPtr, myX509Certificate, (char *)augmentedOnOffTableName.c_str());
+                 
+                 if ((theResult == AZ_HTTP_STATUS_CODE_CONFLICT) || (theResult == AZ_HTTP_STATUS_CODE_CREATED))
+                 {
+                    onOffDataContainer.Set_Year(i, localTime.year());
+                 }
+                 else
+                 {
+                    delay(3000);
+                     //Reset Teensy 4.1
+                    //SCB_AIRCR = 0x05FA0004;      
+                 }
+              }
+              
+              TimeSpan TimeFromLast = onOffValueSet.OnOffSampleValues[i].TimeFromLast;
+
+              char timefromLast[15] = {0};
+              sprintf(timefromLast, "%03i-%02i:%02i:%02i", TimeFromLast.days(), TimeFromLast.hours(), TimeFromLast.minutes(), TimeFromLast.seconds());
+                         
+              size_t onOffPropertyCount = 5;
+              OnOffPropertiesArray[0] = (EntityProperty)TableEntityProperty((char *)"ActStatus", onOffValueSet.OnOffSampleValues[i].outInverter ? (char *)(onOffValueSet.OnOffSampleValues[i].actState ? "On" : "Off") : (char *)(onOffValueSet.OnOffSampleValues[i].actState ? "Off" : "On"), (char *)"Edm.String");
+              OnOffPropertiesArray[1] = (EntityProperty)TableEntityProperty((char *)"LastStatus", onOffValueSet.OnOffSampleValues[i].outInverter ? (char *)(onOffValueSet.OnOffSampleValues[i].lastState ? "On" : "Off") : (char *)(onOffValueSet.OnOffSampleValues[i].lastState ? "Off" : "On"), (char *)"Edm.String");
+              OnOffPropertiesArray[2] = (EntityProperty)TableEntityProperty((char *)"OnTimeDay", (char *) OnTimeDay, (char *)"Edm.String");
+              OnOffPropertiesArray[3] = (EntityProperty)TableEntityProperty((char *)"SampleTime", (char *) sampleTime, (char *)"Edm.String");
+              OnOffPropertiesArray[4] = (EntityProperty)TableEntityProperty((char *)"TimeFromLast", (char *) timefromLast, (char *)"Edm.String");
+          
+              // Create the PartitionKey (special format)
+              makePartitionKey(onOffTablePartPrefix, augmentPartitionKey, localTime, partitionKey, &partitionKeyLength);
+              partitionKey = az_span_slice(partitionKey, 0, partitionKeyLength);
+              
+              // Create the RowKey (special format)            
+              makeRowKey(localTime, rowKey, &rowKeyLength);
+              
+              rowKey = az_span_slice(rowKey, 0, rowKeyLength);
+  
+              // Create TableEntity consisting of PartitionKey, RowKey and the properties named 'SampleTime', 'T_1', 'T_2', 'T_3' and 'T_4'
+              OnOffTableEntity onOffTableEntity(partitionKey, rowKey, az_span_create_from_str((char *)sampleTime),  OnOffPropertiesArray, onOffPropertyCount);
+          
+              onOffValueSet.OnOffSampleValues[i].insertCounter++;
+              
+              // Store Entity to Azure Cloud   
+             __unused az_http_status_code insertResult =  insertTableEntity(myCloudStorageAccountPtr, myX509Certificate, (char *)augmentedOnOffTableName.c_str(), onOffTableEntity, (char *)EtagBuffer);
+              
+              delay(1000);     // wait at least 1 sec so that two uploads cannot have the same RowKey
+
+              break;          // Send only one in each round of loop
+              }
+              else
+              {
+                if (isLast15SecondsOfDay && !onOffValueSet.OnOffSampleValues[i].dayIsLocked)
+                {
+                  if (onOffValueSet.OnOffSampleValues[i].actState == true)              
+                  {               
+                    onOffDataContainer.Set_ResetToOnIsNeededFlag(i, true);                 
+                    onOffDataContainer.SetNewOnOffValue(i, onOffValueSet.OnOffSampleValues[i].inputInverter ? true : false, dateTimeUTCNow, timeZoneOffsetUTC);
+                    delay(1000);   // because we don't want to send twice in the same second 
+                    break;
+                  }
+                else
+                {              
+                  if (onOffValueSet.OnOffSampleValues[i].resetToOnIsNeeded)
+                  {                  
+                    onOffDataContainer.Set_DayIsLockedFlag(i, true);
+                    onOffDataContainer.Set_ResetToOnIsNeededFlag(i, false);
+                    onOffDataContainer.SetNewOnOffValue(i, onOffValueSet.OnOffSampleValues[i].inputInverter ? false : true, dateTimeUTCNow, timeZoneOffsetUTC);
+                    break;
+                  }                 
+                }              
+              }
+              } 
+            }                        
+          }         
+        } 
+      }     
+  } 
+
+
 }
 
 // To manage daylightsavingstime stuff convert input ("Last", "First", "Second", "Third", "Fourth") to int equivalent
@@ -1466,7 +1910,322 @@ int getDayNum(const char * day)
   return -1;
 }
 
+// Scan for available Wifi networks
+// print result als simple list
+void scan_WIFI() 
+{
+      Serial.println("WiFi scan ...");
+      // WiFi.scanNetworks returns the number of networks found
+      int n = WiFi.scanNetworks();
+      if (n == 0) {
+          Serial.println("[ERR] no networks found");
+      } else {
+          
+          Serial.printf("[OK] %i networks found:\n", n);       
+          for (int i = 0; i < n; ++i) {
+              // Print SSID for each network found
+              Serial.printf("  %i: ",i+1);
+              Serial.println(WiFi.SSID(i));
+              delay(10);
+          }
+      }
+}
 
+// establish the connection to an Wifi Access point
+//boolean connect_Wifi(const char * ssid, const char * password)
+boolean connect_Wifi(const char *ssid, const char * password)
+{
+  // Establish connection to the specified network until success.
+  // Important to disconnect in case that there is a valid connection
+  WiFi.disconnect();
+  Serial.println("Connecting to ");
+  Serial.println(ssid);
+  delay(500);
+  //Start connecting (done by the ESP in the background)
+  
+  #if USE_WIFI_STATIC_IP == 1
+  IPAddress presetIp(192, 168, 1, 83);
+  IPAddress presetGateWay(192, 168, 1, 1);
+  IPAddress presetSubnet(255, 255, 255, 0);
+  IPAddress presetDnsServer1(8,8,8,8);
+  IPAddress presetDnsServer2(8,8,4,4);
+
+  WiFi.config(presetIp, presetGateWay, presetDnsServer1, presetDnsServer2);
+  #endif
+
+  WiFi.begin(ssid, password, 6);
+  // read wifi Status
+  wl_status_t wifi_Status = WiFi.status();  
+  int n_trials = 0;
+  // loop while waiting for Wifi connection
+  // run only for 5 trials.
+  while (wifi_Status != WL_CONNECTED && n_trials < 5) {
+    // Check periodicaly the connection status using WiFi.status()
+    // Keep checking until ESP has successfuly connected
+    // or maximum number of trials is reached
+    wifi_Status = WiFi.status();
+    n_trials++;
+    switch(wifi_Status){
+      case WL_NO_SSID_AVAIL:
+          Serial.println("[ERR] SSID not available");
+          break;
+      case WL_CONNECT_FAILED:
+          Serial.println("[ERR] Connection failed");
+          break;
+      case WL_CONNECTION_LOST:
+          Serial.println("[ERR] Connection lost");
+          break;
+      case WL_DISCONNECTED:
+          Serial.println("[ERR] WiFi disconnected");
+          break;
+      case WL_IDLE_STATUS:
+          Serial.println("[ERR] WiFi idle status");
+          break;
+      case WL_SCAN_COMPLETED:
+          Serial.println("[OK] WiFi scan completed");
+          break;
+      case WL_CONNECTED:
+          Serial.println("[OK] WiFi connected");
+          break;
+      default:
+          Serial.println("[ERR] unknown Status");
+          break;
+    }
+    delay(500);
+  }
+  if(wifi_Status == WL_CONNECTED){
+    // connected
+    Serial.print("IP address: ");
+    Serial.println(WiFi.localIP());
+    return true;
+  } else {
+    // not connected
+    Serial.println("");
+    Serial.println("[ERR] unable to connect Wifi");
+    return false;
+  }
+}
+
+String floToStr(float value)
+{
+  char buf[10];
+  sprintf(buf, "%.1f", (roundf(value * 10.0))/10.0);
+  return String(buf);
+}
+
+
+float ReadAnalogSensor(int pSensorIndex)
+{
+#ifndef USE_SIMULATED_SENSORVALUES
+            // Use values read from an analog source
+            // Change the function for each sensor to your needs
+
+            double theRead = MAGIC_NUMBER_INVALID;
+
+            if (analogSensorMgr.HasToBeRead(pSensorIndex, dateTimeUTCNow))
+            {                     
+              switch (pSensorIndex)
+              {
+                case 0:
+                    {
+                      // must be called in the first case
+                      feedResult = soundSwitcher.feed();
+                      if (feedResult.isValid)  
+                      {
+                        float soundValues[2] = {0};
+                        soundValues[0] = feedResult.avValue;
+                        soundValues[1] = feedResult.highAvValue;
+                        analogSensorMgr.SetReadTimeAndValues(pSensorIndex, dateTimeUTCNow, soundValues[1], soundValues[0], MAGIC_NUMBER_INVALID);
+                        
+                        //theRead = feedResult.highAvValue / 10;
+
+                        // Function not used in this App, can be used to display another sensor
+                        theRead = MAGIC_NUMBER_INVALID;
+
+                        // Take theRead (nearly) 0.0 as invalid
+                        // (if no sensor is connected the function returns 0)                        
+                        if (theRead > - 0.00001 && theRead < 0.00001)
+                        {
+                          theRead = MAGIC_NUMBER_INVALID;
+                        }
+                      }                                                                               
+                    }
+                    break;
+
+                case 1:
+                    {
+                      if (feedResult.isValid)  
+                      {
+                        float soundValues[2] = {0};
+                        soundValues[0] = feedResult.avValue;
+                        soundValues[1] = feedResult.highAvValue;
+                        
+                        // Here we look if the sound sensor was updated in this loop
+                        // If yes, we can get the average value from the index 0 sensor
+                        AnalogSensor tempSensor = analogSensorMgr.GetSensorDates(0);
+                        if (tempSensor.LastReadTime.operator==(dateTimeUTCNow))
+                        {
+                          analogSensorMgr.SetReadTimeAndValues(pSensorIndex, dateTimeUTCNow, soundValues[1], soundValues[0], MAGIC_NUMBER_INVALID);
+                          theRead = feedResult.avValue / 10;
+                          // is limited to be not more than 100
+                          theRead = theRead <= 100 ? theRead : 100.0;
+                            // Take theRead (nearly) 0.0 as invalid
+                            // (if no sensor is connected the function returns 0)                        
+                            if ((theRead > - 0.00001 && theRead < 0.00001))
+                            {      
+                                  theRead = MAGIC_NUMBER_INVALID;                                                  
+                            }
+                        }                             
+                      }                
+                    }
+                    break;
+                case 2:
+                    {  
+                        // Show ascending lines from 0 to 5, so re-boots of the board are indicated                                                
+                        theRead = ((double)(insertCounterAnalogTable % 50)) / 10;
+                        return theRead;                                                                   
+                    }
+                    break;
+                case 3:
+                    {
+                      // Line for the switch threshold
+                      theRead = atoi((char *)sSwiThresholdStr) / 10; // dummy
+                    }                   
+                    break;
+              }
+            }                    
+            return theRead ;
+#endif
+
+#ifdef USE_SIMULATED_SENSORVALUES
+      #ifdef USE_TEST_VALUES
+            // Here you can select that diagnostic values (for debugging)
+            // are sent to your storage table
+            double theRead = MAGIC_NUMBER_INVALID;
+            switch (pSensorIndex)
+            {
+                case 0:
+                    {
+                        theRead = timeNtpUpdateCounter;
+                        theRead = theRead / 10; 
+                    }
+                    break;
+
+                case 1:
+                    {                       
+                        theRead = sysTimeNtpDelta > 140 ? 140 : sysTimeNtpDelta < - 40 ? -40 : (double)sysTimeNtpDelta;                      
+                    }
+                    break;
+                case 2:
+                    {
+                        theRead = insertCounterAnalogTable;
+                        theRead = theRead / 10;                      
+                    }
+                    break;
+                case 3:
+                    {
+                        theRead = lastResetCause;                       
+                    }
+                    break;
+            }
+
+            return theRead ;
+
+  
+
+        #endif
+            
+            onOffSwitcherWio.SetActive();
+            // Only as an example we here return values which draw a sinus curve            
+            int frequDeterminer = 4;
+            int y_offset = 1;
+            // different frequency and y_offset for aIn_0 to aIn_3
+            if (pSensorIndex == 0)
+            { frequDeterminer = 4; y_offset = 1; }
+            if (pSensorIndex == 1)
+            { frequDeterminer = 8; y_offset = 10; }
+            if (pSensorIndex == 2)
+            { frequDeterminer = 12; y_offset = 20; }
+            if (pSensorIndex == 3)
+            { frequDeterminer = 16; y_offset = 30; }
+             
+            int secondsOnDayElapsed = dateTimeUTCNow.second() + dateTimeUTCNow.minute() * 60 + dateTimeUTCNow.hour() *60 *60;
+
+            // RoSchmi
+            switch (pSensorIndex)
+            {
+              case 3:
+              {
+
+                //return (double)9.9;   // just something for now
+                return lastResetCause;
+              }
+              break;
+            
+              case 2:
+              { 
+                uint32_t showInsertCounter = insertCounterAnalogTable % 50;               
+                double theRead = ((double)showInsertCounter) / 10;
+                return theRead;
+              }
+              break;
+              case 0:
+              case 1:
+              {
+                return roundf((float)25.0 * (float)sin(PI / 2.0 + (secondsOnDayElapsed * ((frequDeterminer * PI) / (float)86400)))) / 10  + y_offset;          
+              }
+              break;
+              default:
+              {
+                return 0;
+              }
+            }
+  #endif
+}
+
+
+void createSampleTime(DateTime dateTimeUTCNow, int timeZoneOffsetUTC, char * sampleTime)
+{
+  int hoursOffset = timeZoneOffsetUTC / 60;
+  int minutesOffset = timeZoneOffsetUTC % 60;
+  char sign = timeZoneOffsetUTC < 0 ? '-' : '+';
+  char TimeOffsetUTCString[10];
+  sprintf(TimeOffsetUTCString, " %c%03i", sign, timeZoneOffsetUTC);
+  TimeSpan timespanOffsetToUTC = TimeSpan(0, hoursOffset, minutesOffset, 0);
+  DateTime newDateTime = dateTimeUTCNow + timespanOffsetToUTC;
+  sprintf(sampleTime, "%02i/%02i/%04i %02i:%02i:%02i%s",newDateTime.month(), newDateTime.day(), newDateTime.year(), newDateTime.hour(), newDateTime.minute(), newDateTime.second(), TimeOffsetUTCString);
+}
+
+
+void makeRowKey(DateTime actDate,  az_span outSpan, size_t *outSpanLength)
+{
+  // formatting the RowKey (= reverseDate) this way to have the tables sorted with last added row upmost
+  char rowKeyBuf[20] {0};
+
+  sprintf(rowKeyBuf, "%4i%02i%02i%02i%02i%02i", (10000 - actDate.year()), (12 - actDate.month()), (31 - actDate.day()), (23 - actDate.hour()), (59 - actDate.minute()), (59 - actDate.second()));
+  az_span retValue = az_span_create_from_str((char *)rowKeyBuf);
+  az_span_copy(outSpan, retValue);
+  *outSpanLength = retValue._internal.size;         
+}
+
+void makePartitionKey(const char * partitionKeyprefix, bool augmentWithYear, DateTime dateTime, az_span outSpan, size_t *outSpanLength)
+{
+  // if wanted, augment with year and month (12 - month for right order)                    
+  char dateBuf[20] {0};
+  sprintf(dateBuf, "%s%d-%02d", partitionKeyprefix, (dateTime.year()), (12 - dateTime.month()));                  
+  az_span ret_1 = az_span_create_from_str((char *)dateBuf);
+  az_span ret_2 = az_span_create_from_str((char *)partitionKeyprefix);                       
+  if (augmentWithYear == true)
+  {
+    az_span_copy(outSpan, ret_1);            
+    *outSpanLength = ret_1._internal.size; 
+  }
+    else
+  {
+    az_span_copy(outSpan, ret_2);
+    *outSpanLength = ret_2._internal.size;
+  }    
+}
 
 az_http_status_code createTable(CloudStorageAccount *pAccountPtr, X509Certificate pCaCert, const char * pTableName)
 { 
@@ -1526,6 +2285,110 @@ az_http_status_code createTable(CloudStorageAccount *pAccountPtr, X509Certificat
 return statusCode;
 }
 
+az_http_status_code insertTableEntity(CloudStorageAccount *pAccountPtr,  X509Certificate pCaCert, const char * pTableName, TableEntity pTableEntity, char * outInsertETag)
+{ 
+  #if TRANSPORT_PROTOCOL == 1
+    static WiFiClientSecure wifi_client;
+  #else
+    static WiFiClient wifi_client;
+  #endif
+  
+  #if TRANSPORT_PROTOCOL == 1
+    wifi_client.setCACert(myX509Certificate); 
+  #endif
+  
+  /*
+  // For tests: Try second upload with corrupted certificate to provoke failure
+  #if TRANSPORT_PROTOCOL == 1
+    wifi_client.setCACert(myX509Certificate);
+    if (insertCounterAnalogTable == 2)
+    {
+      wifi_client.setCACert(baltimore_corrupt_root_ca);
+    }
+  #endif
+  */
+
+  // RoSchmi
+  TableClient table(pAccountPtr, pCaCert,  httpPtr, &wifi_client, bufferStorePtr);
+
+  #if WORK_WITH_WATCHDOG == 1
+      esp_task_wdt_reset();
+  #endif
+  
+  DateTime responseHeaderDateTime = DateTime();   // Will be filled with DateTime value of the resonse from Azure Service
+
+  // Insert Entity
+  az_http_status_code statusCode = table.InsertTableEntity(pTableName, dateTimeUTCNow, pTableEntity, (char *)outInsertETag, &responseHeaderDateTime, ContType::contApplicationIatomIxml, AcceptType::acceptApplicationIjson, ResponseType::dont_returnContent, false);
+  
+  #if WORK_WITH_WATCHDOG == 1
+      esp_task_wdt_reset();
+  #endif
+
+  lastResetCause = 0;
+  tryUploadCounter++;
+
+   // RoSchmi for tests: to simulate failed upload
+  //az_http_status_code   statusCode = AZ_HTTP_STATUS_CODE_UNAUTHORIZED;
+  
+  if ((statusCode == AZ_HTTP_STATUS_CODE_NO_CONTENT) || (statusCode == AZ_HTTP_STATUS_CODE_CREATED))
+  {
+      char codeString[35] {0};
+      sprintf(codeString, "%s %i", "Entity inserted: ", az_http_status_code(statusCode));
+      #if SERIAL_PRINT == 1
+        Serial.println((char *)codeString);
+      #endif
+    
+    #if UPDATE_TIME_FROM_AZURE_RESPONSE == 1    // System time shall be updated from the DateTime value of the response ?
+    
+    dateTimeUTCNow = responseHeaderDateTime;
+    
+    char buffer[] = "Azure-Utc: YYYY-MM-DD hh:mm:ss";
+    dateTimeUTCNow.toString(buffer);
+    #if SERIAL_PRINT == 1
+      Serial.println((char *)buffer);
+      Serial.println("");
+    #endif
+    
+    #endif   
+  }
+  else            // request failed
+  {               // note: internal error codes from -1 to -11 were converted for tests to error codes 401 to 411 since
+                  // negative values cannot be returned as 'az_http_status_code' 
+
+    failedUploadCounter++;
+    //sendResultState = false;
+    lastResetCause = 100;      // Set lastResetCause to arbitrary value of 100 to signal that post request failed
+    
+    
+      char codeString[35] {0};
+      sprintf(codeString, "%s %i", "Insertion failed: ", az_http_status_code(statusCode));
+      #if SERIAL_PRINT == 1
+        Serial.println((char *)codeString);
+      #endif
+  
+    
+    #if REBOOT_AFTER_FAILED_UPLOAD == 1   // When selected in config.h -> Reboot through SystemReset after failed uoload
+
+        #if TRANSPORT_PROTOCOL == 1         
+          ESP.restart();        
+        #endif
+        #if TRANSPORT_PROTOCOL == 0     // for http requests reboot after the second, not the first, failed request
+          if(failedUploadCounter > 1)
+          {
+            ESP.restart();
+          }
+    #endif
+
+    #endif
+
+    #if WORK_WITH_WATCHDOG == 1
+      esp_task_wdt_reset();  
+    #endif
+    delay(1000);
+  }
+  
+  return statusCode;
+}
 
 void print_reset_reason(RESET_REASON reason)
 {
