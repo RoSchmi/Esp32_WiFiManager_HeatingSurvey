@@ -1,5 +1,14 @@
 /*********************************************************************************************************************************
   Timezone_Generic_Impl.h
+  This is a modification of the original file by Khoi Hoang
+  This modification is for use with ESP32 dev board, will perhaps work with ESP8266 too
+  Version: 1.10.1
+  Modified by RoSchmi May 2024
+  https://github.com/RoSchmi/Esp32_WiFiManager_HeatingSurvey/tree/test
+  **********************************************************************************************************************************/
+
+/*********************************************************************************************************************************
+  Timezone_Generic_Impl.h
   
   For AVR, ESP8266/ESP32, SAMD21/SAMD51, nRF52, STM32, WT32_ETH01 boards
 
@@ -43,12 +52,12 @@
 #define  TZ_FILENAME      "/timezone.dat"
 #define  TZ_DATA_OFFSET   0
 
-#define TZ_USE_EEPROM      true
+#define TZ_USE_EEPROM      false
 
 /////////////////////////////
 
 // To eliminate warnings with [-Wundef]
-#define TZ_USE_ESP32        false
+#define TZ_USE_ESP32        true
 #define TZ_USE_ESP8266      false
 #define TZ_USE_SAMD         false
 #define TZ_USE_SAM_DUE      false
@@ -57,14 +66,18 @@
 #define TZ_USE_RP2040       false
 #define TZ_USE_MBED_RP2040  false
 
+#ifndef TZ_DEBUG
+  #define TZ_DEBUG       false
+#endif
+
 /*----------------------------------------------------------------------*
    Create a Timezone object from the given time change rules.
   ----------------------------------------------------------------------*/
 Timezone::Timezone(const TimeChangeRule& dstStart, const TimeChangeRule& stdStart, uint32_t address)
   : m_dst(dstStart), m_std(stdStart), TZ_DATA_START(address)
 { 
-  //initStorage(address);
-  //initTimeChanges();
+  initStorage(address);
+  initTimeChanges();
 }
 
 /*----------------------------------------------------------------------*
@@ -105,6 +118,8 @@ Timezone::Timezone(uint32_t address)
 
   readRules();
 }
+
+
 
 /*----------------------------------------------------------------------*
    Calculate the DST and standard time change points for the given
@@ -187,6 +202,179 @@ time_t Timezone::toTime_t(const TimeChangeRule& r, int yr)
     
   return t;
 }
+
+
+/************************************************/
+
+
+
+void Timezone::initStorage(uint32_t address)
+{
+  this->TZ_DATA_START = address;
+  
+#if TZ_USE_EEPROM
+  EEPROM.begin();
+
+  TZ_LOGDEBUG3("Read from EEPROM, size = ", TZ_EEPROM_SIZE, ", offset = ", TZ_DATA_START);
+
+/////////////////////////////    
+#elif TZ_USE_SAMD
+  // Do something to init FlashStorage
+  
+/////////////////////////////    
+#elif TZ_USE_STM32
+  // Do something to init FlashStorage  
+  
+
+/////////////////////////////    
+#elif TZ_USE_SAM_DUE
+  // Do something to init DueFlashStorage
+
+/////////////////////////////  
+#elif TZ_USE_NRF52
+  // Do something to init LittleFS / InternalFS
+  // Initialize Internal File System
+  InternalFS.begin();
+  
+/////////////////////////////    
+#elif TZ_USE_ESP32
+  // Do something to init LittleFS / InternalFS
+  // Initialize Internal File System
+  if (!FileFS.begin(true))
+  {
+    TZ_LOGDEBUG("SPIFFS/LittleFS failed! Already tried formatting.");
+  
+    if (!FileFS.begin())
+    {     
+      // prevents debug info from the library to hide err message.
+      delay(100);
+      
+      TZ_LOGERROR("LittleFS failed!");
+    }
+  }
+  
+/////////////////////////////    
+#elif TZ_USE_ESP8266
+  // Do something to init LittleFS / InternalFS
+  // Initialize Internal File System
+  // Do something to init LittleFS / InternalFS
+  // Initialize Internal File System
+  FileFS.format();
+   
+  if (!FileFS.begin())
+  {
+    TZ_LOGDEBUG("SPIFFS/LittleFS failed! Already tried formatting.");
+  
+    if (!FileFS.begin())
+    {     
+      // prevents debug info from the library to hide err message.
+      delay(100);
+      
+      TZ_LOGERROR("LittleFS failed!");
+    }
+  }
+  
+/////////////////////////////
+#elif TZ_USE_RP2040
+
+      bool beginOK = FileFS.begin();
+  
+      if (!beginOK)
+      {
+        TZ_LOGERROR("LittleFS error");
+      }
+  
+/////////////////////////////
+
+#elif TZ_USE_MBED_RP2040
+ 
+      TZ_LOGDEBUG1("LittleFS size (KB) = ", RP2040_FS_SIZE_KB);
+      
+      int err = fs.mount(&bd);
+      
+      if (err)
+      {       
+        // Reformat if we can't mount the filesystem
+        TZ_LOGERROR("LittleFS Mount Fail. Formatting... ");
+ 
+        err = fs.reformat(&bd);
+      }
+      else
+      {
+        TZ_LOGDEBUG("LittleFS Mount OK");
+      }
+     
+      if (err)
+      {
+        TZ_LOGERROR("LittleFS error");
+      }
+
+/////////////////////////////
+
+#elif TZ_USE_MBED_PORTENTA
+
+      if (blockDevicePtr != nullptr)
+        return;
+
+      // Get limits of the the internal flash of the microcontroller
+      _flashIAPLimits = getFlashIAPLimits();
+      
+      TZ_LOGDEBUG1("Flash Size: (KB) = ", _flashIAPLimits.flash_size / 1024.0);
+      TZ_HEXLOGDEBUG1("FlashIAP Start Address: = 0x", _flashIAPLimits.start_address);
+      TZ_LOGDEBUG1("LittleFS size (KB) = ", _flashIAPLimits.available_size / 1024.0);
+      
+      blockDevicePtr = new FlashIAPBlockDevice(_flashIAPLimits.start_address, _flashIAPLimits.available_size);
+      
+      if (!blockDevicePtr)
+      {    
+        TZ_LOGERROR("Error init FlashIAPBlockDevice");
+
+        return;
+      }
+      
+  #if FORCE_REFORMAT
+      fs.reformat(blockDevicePtr);
+  #endif
+
+      int err = fs.mount(blockDevicePtr);
+      
+      TZ_LOGDEBUG(err ? "LittleFS Mount Fail" : "LittleFS Mount OK");
+  
+      if (err)
+      {
+        // Reformat if we can't mount the filesystem
+        TZ_LOGDEBUG("Formatting... ");
+  
+        err = fs.reformat(blockDevicePtr);
+      }
+  
+      bool beginOK = (err == 0);
+  
+      if (!beginOK)
+      {
+        TZ_LOGERROR("\nLittleFS error");
+      }
+      
+/////////////////////////////  
+ 
+#elif TZ_USE_RTL8720
+  // Do something to init FlashStorage_RTL8720
+    
+/////////////////////////////  
+#else
+  #error Un-identifiable board selected. Please check your Tools->Board setting.
+#endif
+/////////////////////////////  
+
+  storageSystemInit = true;
+}
+
+
+
+/************************************************/
+
+
+
 
 /*----------------------------------------------------------------------*
    Convert the given UTC time to local time, standard or

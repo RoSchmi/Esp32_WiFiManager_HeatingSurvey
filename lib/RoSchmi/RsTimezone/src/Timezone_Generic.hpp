@@ -126,7 +126,7 @@ class Timezone
 
   private:
   
-    // void    initStorage(uint32_t address);
+     void    initStorage(uint32_t address);
     
      void    calcTimeChanges(int yr);
      void    initTimeChanges();
