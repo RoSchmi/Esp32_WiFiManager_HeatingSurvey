@@ -66,11 +66,11 @@
 #define TZ_USE_RP2040       false
 #define TZ_USE_MBED_RP2040  false
 
-/*
+
 #ifndef TZ_DEBUG
-  #define TZ_DEBUG       false
+  #define TZ_DEBUG       true
 #endif
-*/
+
 
 #if defined(ESP32)
 
@@ -170,7 +170,7 @@
   #endif  
 
 #ifndef TZ_DEBUG
-  #define TZ_DEBUG       false
+  #define TZ_DEBUG       true
 #endif
 
 /*----------------------------------------------------------------------*
@@ -190,6 +190,7 @@ Timezone::Timezone(const TimeChangeRule& dstStart, const TimeChangeRule& stdStar
 Timezone::Timezone(const TimeChangeRule& stdTime, uint32_t address)
   : m_dst(stdTime), m_std(stdTime), TZ_DATA_START(address)
 { 
+  // RoSchmi
   //initStorage(address);
   //initTimeChanges();
 }
@@ -215,11 +216,12 @@ void Timezone::init(const TimeChangeRule& dstStart, const TimeChangeRule& stdSta
   ----------------------------------------------------------------------*/
 Timezone::Timezone(uint32_t address)
 {
+  // RoSchmi
   //initStorage(address);
   
   //initTimeChanges();
   
-  
+  // RoSchmi readRules is modified, it might crash
   readRules();
 }
 
@@ -528,8 +530,9 @@ void Timezone::display_STD_Rule()
   ----------------------------------------------------------------------*/
 void Timezone::readRules()
 {
-  //readTZData();
-  //initTimeChanges();  // force calcTimeChanges() at next conversion call
+  // RoSchmi: The following lines make the code crash
+     readTZData();
+     initTimeChanges();  // force calcTimeChanges() at next conversion call
 }
 
 /*----------------------------------------------------------------------*
@@ -541,10 +544,10 @@ void Timezone::writeRules(int address)
   this->TZ_DATA_START = address;
   
   writeTZData(address);
- // initTimeChanges();  // force calcTimeChanges() at next conversion call
+  initTimeChanges();  // force calcTimeChanges() at next conversion call
 }
 
-// RoSchmi hier eingefügt
+
 #if (TZ_USE_ESP32)
 
 #if USE_LITTLEFS
@@ -560,7 +563,9 @@ void Timezone::writeRules(int address)
   ----------------------------------------------------------------------*/
 void Timezone::readTZData()
 {
-  
+
+  // This code will crash the application, why ?
+  /*
   if (!storageSystemInit)
   {
     // Format SPIFFS/LittleFS if not yet
@@ -573,16 +578,16 @@ void Timezone::readTZData()
         TZ_LOGERROR(F("SPIFFS/LittleFS failed! Pls use EEPROM."));
         return;
       }
-    }
-    
+    }    
     storageSystemInit = true;
+    
   }
-  
+  */
   // ESP32 code
   File file = FileFS.open(TZ_FILENAME, "r");
   
   TZ_LOGDEBUG3(F("Reading m_dst & m_std from TZ_file :"), TZ_FILENAME, F(", data offset ="), TZ_DATA_OFFSET);
-
+  
   if (file)
   {
     memset(&m_dst, 0, TZ_DATA_SIZE);
@@ -612,8 +617,7 @@ void Timezone::readTZData()
    the given offset.
   ----------------------------------------------------------------------*/
 void Timezone::writeTZData(int address)
-{
-  
+{ 
   (void) address;
   
   if (!storageSystemInit)
