@@ -218,7 +218,8 @@ Timezone::Timezone(uint32_t address)
   //initStorage(address);
   
   //initTimeChanges();
-
+  
+  
   readRules();
 }
 
@@ -543,4 +544,231 @@ void Timezone::writeRules(int address)
  // initTimeChanges();  // force calcTimeChanges() at next conversion call
 }
 
+// RoSchmi hier eingefügt
+#if (TZ_USE_ESP32)
+
+#if USE_LITTLEFS
+  #warning Using ESP32 LittleFS in Timezone_Generic
+#else
+  #warning Using ESP32 SPIFFS in Timezone_Generic
+#endif
+
+ // ESP32 code    
+/*----------------------------------------------------------------------*
+   Read the daylight and standard time rules from LittleFS at
+   the given offset.
+  ----------------------------------------------------------------------*/
+void Timezone::readTZData()
+{
+  
+  if (!storageSystemInit)
+  {
+    // Format SPIFFS/LittleFS if not yet
+    if (!FileFS.begin(true))
+    {
+      TZ_LOGERROR(F("SPIFFS/LittleFS failed! Formatting."));
+      
+      if (!FileFS.begin())
+      {
+        TZ_LOGERROR(F("SPIFFS/LittleFS failed! Pls use EEPROM."));
+        return;
+      }
+    }
+    
+    storageSystemInit = true;
+  }
+  
+  // ESP32 code
+  File file = FileFS.open(TZ_FILENAME, "r");
+  
+  TZ_LOGDEBUG3(F("Reading m_dst & m_std from TZ_file :"), TZ_FILENAME, F(", data offset ="), TZ_DATA_OFFSET);
+
+  if (file)
+  {
+    memset(&m_dst, 0, TZ_DATA_SIZE);
+    memset(&m_std, 0, TZ_DATA_SIZE);
+    
+    file.seek(TZ_DATA_OFFSET);
+    
+    file.readBytes((char *) &m_dst, TZ_DATA_SIZE);
+    
+    // Seek to be sure
+    file.seek(TZ_DATA_OFFSET + TZ_DATA_SIZE);
+    file.readBytes((char *) &m_std, TZ_DATA_SIZE);
+
+    TZ_LOGDEBUG(F("Reading from TZ_file OK"));
+
+    file.close(); 
+  }
+  else
+  {
+    TZ_LOGERROR(F("Reading from TZ_file failed"));
+  }
+  
+}
+
+/*----------------------------------------------------------------------*
+   Write the daylight and standard time rules to LittleFS at
+   the given offset.
+  ----------------------------------------------------------------------*/
+void Timezone::writeTZData(int address)
+{
+  
+  (void) address;
+  
+  if (!storageSystemInit)
+  {
+    // Format SPIFFS/LittleFS if not yet
+    if (!FileFS.begin(true))
+    {
+      TZ_LOGERROR(F("SPIFFS/LittleFS failed! Formatting."));
+      
+      if (!FileFS.begin())
+      {
+        TZ_LOGERROR(F("SPIFFS/LittleFS failed!"));
+        return;
+      }
+    }
+    
+    storageSystemInit = true;
+  }
+  // ESP32 code
+  File file = FileFS.open(TZ_FILENAME, "w");
+
+  TZ_LOGDEBUG3(F("Saving m_dst & m_std to TZ_file :"), TZ_FILENAME, F(", data offset ="), TZ_DATA_OFFSET);
+
+  if (file)
+  {
+    file.seek(TZ_DATA_OFFSET);
+    file.write((uint8_t *) &m_dst, TZ_DATA_SIZE);
+
+    // Seek to be sure
+    file.seek(TZ_DATA_OFFSET + TZ_DATA_SIZE);
+    file.write((uint8_t *) &m_std, TZ_DATA_SIZE);
+    
+    file.close();
+
+    TZ_LOGDEBUG("Saving to TZ_file OK");
+  }
+  else
+  {
+    TZ_LOGERROR("Saving to TZ_file failed");
+  }
+    
+}
+
+/////////////////////////////////////////////
+
+#elif (TZ_USE_ESP8266)
+  
+  #if USE_LITTLEFS
+  #warning Using ESP8266 LittleFS in Timezone_Generic
+#else
+  #warning Using ESP8266 SPIFFS in Timezone_Generic
+#endif
+
+  // ESP8266 code    
+/*----------------------------------------------------------------------*
+   Read the daylight and standard time rules from LittleFS at
+   the given offset.
+  ----------------------------------------------------------------------*/
+void Timezone::readTZData()
+{
+  if (!storageSystemInit)
+  {
+    // Format SPIFFS/LittleFS if not yet
+    if (!FileFS.begin())
+    {
+      TZ_LOGERROR(F("SPIFFS/LittleFS failed! Formatting."));
+      FileFS.format();
+      
+      if (!FileFS.begin())
+      {
+        TZ_LOGERROR(F("SPIFFS/LittleFS failed"));
+        return;
+      }
+    }
+    
+    storageSystemInit = true;
+  }
+  
+  // ESP8266 code
+  File file = FileFS.open(TZ_FILENAME, "r");
+  
+  TZ_LOGDEBUG3(F("Reading m_dst & m_std from TZ_file :"), TZ_FILENAME, F(", data offset ="), TZ_DATA_OFFSET);
+
+  if (file)
+  {
+    memset(&m_dst, 0, TZ_DATA_SIZE);
+    memset(&m_std, 0, TZ_DATA_SIZE);
+    
+    file.seek(TZ_DATA_OFFSET);
+    
+    file.readBytes((char *) &m_dst, TZ_DATA_SIZE);
+    
+    // Seek to be sure
+    file.seek(TZ_DATA_OFFSET + TZ_DATA_SIZE);
+    file.readBytes((char *) &m_std, TZ_DATA_SIZE);
+
+    TZ_LOGDEBUG(F("Reading from TZ_file OK"));
+
+    file.close(); 
+  }
+  else
+  {
+    TZ_LOGERROR(F("Reading from TZ_file failed"));
+  }
+}
+
+/*----------------------------------------------------------------------*
+   Write the daylight and standard time rules to LittleFS at
+   the given offset.
+  ----------------------------------------------------------------------*/
+void Timezone::writeTZData(int address)
+{ 
+  (void) address;
+  
+  if (!storageSystemInit)
+  {
+    // Format SPIFFS/LittleFS if not yet
+    if (!FileFS.begin())
+    {
+      TZ_LOGERROR(F("SPIFFS/LittleFS failed! Formatting."));
+      FileFS.format();
+      
+      if (!FileFS.begin())
+      {
+        TZ_LOGERROR(F("SPIFFS/LittleFS failed! Pls use EEPROM."));
+        return;
+      }
+    }
+    
+    storageSystemInit = true;
+  }
+  
+  // ESP8266 code
+  File file = FileFS.open(TZ_FILENAME, "w");
+
+  TZ_LOGDEBUG3(F("Saving m_dst & m_std to TZ_file :"), TZ_FILENAME, F(", data offset ="), TZ_DATA_OFFSET);
+
+  if (file)
+  {
+    file.seek(TZ_DATA_OFFSET);
+    file.write((uint8_t *) &m_dst, TZ_DATA_SIZE);
+
+    // Seek to be sure
+    file.seek(TZ_DATA_OFFSET + TZ_DATA_SIZE);
+    file.write((uint8_t *) &m_std, TZ_DATA_SIZE);
+    
+    file.close();
+
+    TZ_LOGDEBUG("Saving to TZ_file OK");
+  }
+  else
+  {
+    TZ_LOGERROR("Saving to TZ_file failed");
+  }   
+}
+
+#endif
 #endif    // TIMEZONE_GENERIC
