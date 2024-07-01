@@ -57,8 +57,8 @@
 
 #include "NTPClient_Generic.h"
 #include "Timezone_Generic.h"
-#include "WiFi.h"
-#include "WiFiClientSecure.h"
+//#include "WiFi.h"
+//#include "WiFiClientSecure.h"
 #include "WiFiUdp.h"
 #include "WiFiClient.h"
 #include "HTTPClient.h"
