@@ -967,11 +967,12 @@ void setup()
 {
   // put your setup code here, to run once:
   // Get Stackptr at start of setup()
-
+  /*
   while (true)
   {
     delay(1000);
   }
+  */
   void* SpStart = NULL;
   StackPtrAtStart = (void *)&SpStart;
   // Get StackHighWatermark at start of setup()
