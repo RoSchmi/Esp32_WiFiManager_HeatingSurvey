@@ -1,6 +1,6 @@
-// Program 'Esp32_WiFiManager_HeatingSurvey' Version 1.1.0
-// Last updated: 2024_05_24
-// Copyright: RoSchmi 2021, License: Apache 2.0
+// Program 'Esp32_WiFiManager_HeatingSurvey' Version 1.1.1
+// Last updated: 2024_07_02
+// Copyright: RoSchmi 2021, 2024 License: Apache 2.0
 
 // The application doesn't compile without a trick:
 // The libraries NTPClient_Generic and Timezone_Generic load the
