@@ -1,4 +1,4 @@
-// Program 'Esp32_WiFiManager_HeatingSurvey' Version 1.1.1
+// Program 'Esp32_WiFiManager_HeatingSurvey' Branch Port6.7.0
 // Last updated: 2024_07_02
 // Copyright: RoSchmi 2021, 2024 License: Apache 2.0
 
@@ -81,7 +81,7 @@
 #include "Rs_TimeNameHelper.h"
 
 // Now support ArduinoJson 6.0.0+ ( tested with v6.14.1 )
-#include <ArduinoJson.h>      // get it from https://arduinojson.org/ or install via Arduino library manager
+#include "ArduinoJson.h"      // get it from https://arduinojson.org/ or install via Arduino library manager
 
 
 // Default Esp32 stack size of 8192 byte is not enough for this application.
@@ -89,9 +89,16 @@
 // https://community.platformio.org/t/esp32-stack-configuration-reloaded/20994/4
 // Patch: Replace C:\Users\thisUser\.platformio\packages\framework-arduinoespressif32\cores\esp32\main.cpp
 // with the file 'main.cpp' from folder 'patches' of this repository, then use the following code to configure stack size
-#if !(USING_DEFAULT_ARDUINO_LOOP_STACK_SIZE)
-  uint16_t USER_CONFIG_ARDUINO_LOOP_STACK_SIZE = 16384;
-#endif
+//#if !(USING_DEFAULT_ARDUINO_LOOP_STACK_SIZE)
+//  uint16_t USER_CONFIG_ARDUINO_LOOP_STACK_SIZE = 16384;
+// #endif
+
+
+// Default Esp32 stack size of 8192 byte is not enough for this application.
+// --> configure stack size dynamically from code to 16384
+// https://community.platformio.org/t/esp32-stack-configuration-reloaded/20994/4
+
+//SET_LOOP_TASK_STACK_SIZE ( 16*1024 ); // 16KB
 
 // Allocate memory space in memory segment .dram0.bss, ptr to this memory space is later
 // passed to TableClient (is used there as the place for some buffers to preserve stack )
@@ -289,6 +296,8 @@ int getWeekOfMonthNum(const char * weekOfMonth);
 //For ESP32, To use ESP32 Dev Module, QIO, Flash 4MB/80MHz, Upload 921600
 
 //Ported to ESP32
+
+
 #ifdef ESP32
   #include <esp_wifi.h>
   #include <WiFi.h>
@@ -313,10 +322,12 @@ int getWeekOfMonthNum(const char * weekOfMonth);
     #include "FS.h"
 
     // The library has been merged into esp32 core release 1.0.6
-    #include <LITTLEFS.h>             // https://github.com/lorol/LITTLEFS
+    //#include <LITTLEFS.h>             // https://github.com/lorol/LITTLEFS
     
-    FS* filesystem =      &LITTLEFS;
-    #define FileFS        LITTLEFS
+    #include "LittleFS.h"
+    FS* filesystem =      &LittleFS;
+    //#define FileFS        LITTLEFS
+
     #define FS_Name       "LittleFS"
   #elif USE_SPIFFS
     #include <SPIFFS.h>
@@ -330,6 +341,9 @@ int getWeekOfMonthNum(const char * weekOfMonth);
     #define FileFS        FFat
     #define FS_Name       "FFat"
   #endif
+
+  
+
   //////
 
   #define ESP_getChipId()   ((uint32_t)ESP.getEfuseMac())
@@ -967,12 +981,9 @@ void setup()
 {
   // put your setup code here, to run once:
   // Get Stackptr at start of setup()
-  /*
-  while (true)
-  {
-    delay(1000);
-  }
-  */
+  
+  
+  
   void* SpStart = NULL;
   StackPtrAtStart = (void *)&SpStart;
   // Get StackHighWatermark at start of setup()
@@ -1040,6 +1051,11 @@ void setup()
   if(watchDogCommandSuccessful)
   {
     Serial.println(F("\r\nWatchdog is preliminary disabled"));
+    while (true)
+  {
+    delay(1000);
+    Serial.println(F("\r\nWatchdog is preliminary disabled"));
+  }
   }
   else
   {
@@ -1141,7 +1157,10 @@ void setup()
 #if ( USING_ESP32_S2 || USING_ESP32_C3 )
   ESPAsync_WiFiManager ESPAsync_wifiManager(&webServer, NULL, "AsyncConfigOnStartup");
 #else
-  DNSServer dnsServer;
+  // RoSchmi
+  //DNSServer dnsServer;
+  AsyncDNSServer dnsServer;
+
   
   ESPAsync_WiFiManager ESPAsync_wifiManager(&webServer, &dnsServer, "AsyncConfigOnStartup");
 #endif
@@ -2174,7 +2193,8 @@ az_http_status_code createTable(CloudStorageAccount *pAccountPtr, X509Certificat
   #if WORK_WITH_WATCHDOG == 1
       esp_task_wdt_reset();
   #endif
-
+  
+  // RoSchmi
   TableClient table(pAccountPtr, pCaCert,  httpPtr, &wifi_client, bufferStorePtr);
 
   // Create Table

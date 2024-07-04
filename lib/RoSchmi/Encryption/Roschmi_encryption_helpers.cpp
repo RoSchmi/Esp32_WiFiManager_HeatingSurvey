@@ -42,7 +42,9 @@ int createMd5Hash(char * output17Bytes, size_t outputLength, const char * input)
         mbedtls_md5_context ctxMd5; 
              
         mbedtls_md5_init(&ctxMd5);
-        mbedtls_md5_starts(&ctxMd5);
+        //RoSchmi
+        //mbedtls_md5_starts(&ctxMd5);
+        mbedtls_md5_starts_ret(&ctxMd5);   
         mbedtls_md5_update(&ctxMd5, (const uint8_t*) input, strlen(input));           
         mbedtls_md5_finish(&ctxMd5, md5hash);
                 
