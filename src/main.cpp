@@ -1146,7 +1146,9 @@ void setup()
   // RoSchmi
   //DNSServer dnsServer;
   AsyncDNSServer dnsServer;
-
+  
+  //dnsServer.start()
+  
   
   ESPAsync_WiFiManager ESPAsync_wifiManager(&webServer, &dnsServer, "AsyncConfigOnStartup");
 #endif
