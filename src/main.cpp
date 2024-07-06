@@ -1,5 +1,5 @@
 // Program 'Esp32_WiFiManager_HeatingSurvey' Branch Port6.7.0
-// Last updated: 2024_07_02
+// Last updated: 2024_07_06
 // Copyright: RoSchmi 2021, 2024 License: Apache 2.0
 
 // The application doesn't compile without a trick:
@@ -40,9 +40,7 @@
 #include "ESPAsyncWebServer.h"
 #include "defines.h"
 #include "config.h"
-//#include "config_secret.h"
 #include "DateTime.h"
-//#include "FreeRTOS.h"
 #include <freertos/FreeRTOS.h>
 #include "Esp.h"
 #include "esp_task_wdt.h"
@@ -57,8 +55,6 @@
 
 #include "NTPClient_Generic.h"
 #include "Timezone_Generic.h"
-//#include "WiFi.h"
-//#include "WiFiClientSecure.h"
 #include "WiFiUdp.h"
 #include "WiFiClient.h"
 #include "HTTPClient.h"
@@ -98,7 +94,7 @@
 // --> configure stack size dynamically from code to 16384
 // https://community.platformio.org/t/esp32-stack-configuration-reloaded/20994/4
 
-//SET_LOOP_TASK_STACK_SIZE ( 16*1024 ); // 16KB
+SET_LOOP_TASK_STACK_SIZE ( 16*1024 ); // 16KB
 
 // Allocate memory space in memory segment .dram0.bss, ptr to this memory space is later
 // passed to TableClient (is used there as the place for some buffers to preserve stack )
@@ -180,7 +176,6 @@ DataContainerWio dataContainer(TimeSpan(sendIntervalSeconds), TimeSpan(0, 0, INV
 
 AnalogSensorMgr analogSensorMgr(MAGIC_NUMBER_INVALID);
 
-
 OnOffDataContainerWio onOffDataContainer;
 
 OnOffSwitcherWio onOffSwitcherWio;
@@ -211,7 +206,6 @@ FeedResponse feedResult;
 int soundSwitcherUpdateInterval = SOUNDSWITCHER_UPDATEINTERVAL;
 uint32_t soundSwitcherReadDelayTime = SOUNDSWITCHER_READ_DELAYTIME;
 
-
 uint64_t loopCounter = 0;
 int insertCounterAnalogTable = 0;
 uint32_t tryUploadCounter = 0;
@@ -222,7 +216,6 @@ int32_t sysTimeNtpDelta = 0;
 
   bool ledState = false;
   
-
   const int timeZoneOffset = (int)TIMEZONEOFFSET;
   const int dstOffset = (int)DSTOFFSET;
 
@@ -288,7 +281,7 @@ int getWeekOfMonthNum(const char * weekOfMonth);
   #error This code is intended to run on the ESP8266 or ESP32 platform! Please check your Tools->Board setting.
 #endif
 
-#define ESP_ASYNC_WIFIMANAGER_VERSION_MIN_TARGET     "ESPAsync_WiFiManager v1.9.2"
+#define ESP_ASYNC_WIFIMANAGER_VERSION_MIN_TARGET     "ESPAsync_WiFiManager v1.10.1"
 
 // Use from 0 to 4. Higher number, more debugging messages and memory usage.
 #define _ESPASYNC_WIFIMGR_LOGLEVEL_    0
@@ -296,14 +289,10 @@ int getWeekOfMonthNum(const char * weekOfMonth);
 //For ESP32, To use ESP32 Dev Module, QIO, Flash 4MB/80MHz, Upload 921600
 
 //Ported to ESP32
-
-
 #ifdef ESP32
   #include <esp_wifi.h>
   #include <WiFi.h>
   #include <WiFiClient.h>
-
-  // From v1.1.1
   #include <WiFiMulti.h>
   WiFiMulti wifiMulti;
 
@@ -322,13 +311,19 @@ int getWeekOfMonthNum(const char * weekOfMonth);
     #include "FS.h"
 
     // The library has been merged into esp32 core release 1.0.6
-    //#include <LITTLEFS.h>             // https://github.com/lorol/LITTLEFS
+    // I tried hard to get it running with the version in esp32 core with
+    // no success, so I stayed with 'LITTLEFS.h'
     
-    #include "LittleFS.h"
-    FS* filesystem =      &LittleFS;
-    //#define FileFS        LITTLEFS
+    #include <LITTLEFS.h>             // https://github.com/lorol/LITTLEFS
+    
+    FS* filesystem =      &LITTLEFS;
+    #define FileFS        LITTLEFS
+    #define FS_Name       "LITTLEFS"
 
-    #define FS_Name       "LittleFS"
+    //FS* filesystem =      &LittleFS;
+    //#define FileFS        LittleFS
+    //#define FS_Name       "LittleFS"
+     
   #elif USE_SPIFFS
     #include <SPIFFS.h>
     FS* filesystem =      &SPIFFS;
@@ -341,9 +336,6 @@ int getWeekOfMonthNum(const char * weekOfMonth);
     #define FileFS        FFat
     #define FS_Name       "FFat"
   #endif
-
-  
-
   //////
 
   #define ESP_getChipId()   ((uint32_t)ESP.getEfuseMac())
@@ -391,7 +383,6 @@ String password;
 String Router_SSID;
 String Router_Pass;
 
-// From v1.1.1
 // You only need to format the filesystem once
 //#define FORMAT_FILESYSTEM       true
 #define FORMAT_FILESYSTEM         false
@@ -399,7 +390,7 @@ String Router_Pass;
 #define MIN_AP_PASSWORD_SIZE    8
 
 #define SSID_MAX_LEN            32
-//From v1.0.10, WPA2 passwords can be up to 63 characters long.
+//WPA2 passwords can be up to 63 characters long.
 #define PASS_MAX_LEN            64
 
 typedef struct
@@ -1028,7 +1019,7 @@ void setup()
 
   delay(4000);
   
-  attachInterrupt(GPIOPin, GPIOPinISR, RISING);
+  //attachInterrupt(GPIOPin, GPIOPinISR, RISING);
   
   Serial.printf("\r\n\r\nAddress of Stackpointer near start is:  %p \r\n",  (void *)StackPtrAtStart);
   Serial.printf("End of Stack is near:                   %p \r\n",  (void *)StackPtrEnd);
@@ -1050,12 +1041,7 @@ void setup()
 
   if(watchDogCommandSuccessful)
   {
-    Serial.println(F("\r\nWatchdog is preliminary disabled"));
-    while (true)
-  {
-    delay(1000);
-    Serial.println(F("\r\nWatchdog is preliminary disabled"));
-  }
+    Serial.println(F("\r\nWatchdog is preliminary disabled"));  
   }
   else
   {
