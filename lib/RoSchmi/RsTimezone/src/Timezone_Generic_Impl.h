@@ -116,11 +116,13 @@
       
       // The library has been merged into esp32 core from release 1.0.6
       // but I couldn't get it working
+      /*
       #include <LITTLEFS.h>
       #define FileFS   LITTLEFS
+      */
 
-      //#include <LittleFS.h>
-      //#define FileFS   LittleFS 
+      #include <LittleFS.h>
+      #define FileFS   LittleFS 
     #else
       #if (_TZ_LOGLEVEL_ > 2)
         #warning Using ESP32 Core 1.0.5-. You must install LITTLEFS library

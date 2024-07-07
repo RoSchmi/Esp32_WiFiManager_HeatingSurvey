@@ -314,15 +314,18 @@ int getWeekOfMonthNum(const char * weekOfMonth);
     // I tried hard to get it running with the version in esp32 core with
     // no success, so I stayed with 'LITTLEFS.h'
     
-    #include <LITTLEFS.h>             // https://github.com/lorol/LITTLEFS
+    //#include <LITTLEFS.h>             // https://github.com/lorol/LITTLEFS
+    #include <LittleFS.h>
     
+    /*
     FS* filesystem =      &LITTLEFS;
     #define FileFS        LITTLEFS
     #define FS_Name       "LITTLEFS"
+    */
 
-    //FS* filesystem =      &LittleFS;
-    //#define FileFS        LittleFS
-    //#define FS_Name       "LittleFS"
+    FS* filesystem =      &LittleFS;
+    #define FileFS        LittleFS
+    #define FS_Name       "LittleFS"
      
   #elif USE_SPIFFS
     #include <SPIFFS.h>
