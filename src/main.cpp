@@ -1,6 +1,10 @@
 // Program 'Esp32_WiFiManager_HeatingSurvey' Branch Port6.7.0
-// Last updated: 2024_07_06
+// Last updated: 2024_07_08
 // Copyright: RoSchmi 2021, 2024 License: Apache 2.0
+
+// In cases of a wrong (old) format of the LittleFS flash storage,
+// the flash must be cleared with the command (cmd window)
+// python C:\Users\<user>\.platformio\packages\tool-esptoolpy\esptool.py erase_flash
 
 // The application doesn't compile without a trick:
 // The libraries NTPClient_Generic and Timezone_Generic load the
@@ -322,11 +326,11 @@ int getWeekOfMonthNum(const char * weekOfMonth);
     #define FileFS        LITTLEFS
     #define FS_Name       "LITTLEFS"
     */
-
+    
     FS* filesystem =      &LittleFS;
     #define FileFS        LittleFS
     #define FS_Name       "LittleFS"
-     
+    
   #elif USE_SPIFFS
     #include <SPIFFS.h>
     FS* filesystem =      &SPIFFS;
@@ -637,7 +641,7 @@ uint8_t connectMultiWiFi()
   int i = 0;
   status = wifiMulti.run();
   delay(WIFI_MULTI_1ST_CONNECT_WAITING_MS);
-
+  
   while ( ( i++ < 20 ) && ( status != WL_CONNECTED ) )
   {
     status = WiFi.status();
@@ -647,7 +651,7 @@ uint8_t connectMultiWiFi()
     else
       delay(WIFI_MULTI_CONNECT_WAITING_MS);
   }
-
+  
   if ( status == WL_CONNECTED )
   {
     LOGERROR1(F("WiFi connected after time: "), i);
@@ -955,7 +959,7 @@ bool writeConfigFile()
 
 #if (ARDUINOJSON_VERSION_MAJOR >= 6)
   Serial.println(F("Here we could print the parameter written to flash"));
-  //serializeJsonPretty(json, Serial);
+  serializeJsonPretty(json, Serial);
 
   // Write data to file and close it
   serializeJson(json, f);
@@ -1190,7 +1194,7 @@ void setup()
 
   Serial.println(F("Here we could print the used WiFi-Credentials"));
   //Remove this line if you do not want to see WiFi password printed
-  //Serial.println("ESP Self-Stored: SSID = " + Router_SSID + ", Pass = " + Router_Pass);
+  Serial.println("ESP Self-Stored: SSID = " + Router_SSID + ", Pass = " + Router_Pass);
   
   ssid.toUpperCase();
   password = "My" + ssid;
@@ -1396,9 +1400,27 @@ void setup()
     //https://www.az-delivery.de/blogs/azdelivery-blog-fur-arduino-und-raspberry-pi/watchdog-und-heartbeat
 
     //https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/system/wdts.html
-  #endif  
+  #endif 
 
-  if (WiFi.status() == WL_CONNECTED)
+  uint8_t status;
+  int i = 0;
+  status = wifiMulti.run();
+  delay(WIFI_MULTI_1ST_CONNECT_WAITING_MS);
+
+  bool Connected_To_Router = connect_Wifi(Router_SSID.c_str(), Router_Pass.c_str());
+  /*
+  while ( ( i++ < 20 ) && ( status != WL_CONNECTED ) )
+  {
+    status = WiFi.status();
+
+    if ( status == WL_CONNECTED )
+      break;
+    else
+      delay(WIFI_MULTI_CONNECT_WAITING_MS);
+  }
+  */
+
+  if ( status == WL_CONNECTED )
   {
     Serial.print(F("connected. Local IP: "));
     Serial.println(WiFi.localIP());
@@ -1413,6 +1435,15 @@ void setup()
       }
     #endif
   }
+
+  /*
+  while (true)
+  {
+    Serial.print(F("connected. Local IP: "));
+    Serial.println(WiFi.localIP());
+    delay (1000);
+  }
+  */
 
   soundSwitcher.begin(atoi((char *)sSwiThresholdStr), Hysteresis::Percent_10, soundSwitcherUpdateInterval, soundSwitcherReadDelayTime);
   soundSwitcher.SetCalibrationParams(-20.0);  // optional
