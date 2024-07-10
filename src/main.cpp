@@ -1,4 +1,5 @@
-// Program 'Esp32_WiFiManager_HeatingSurvey' Branch Port6.7.0
+// Program 'Esp32_WiFiManager_HeatingSurvey' Branch Master
+
 // Last updated: 2024_07_10
 // Copyright: RoSchmi 2021, 2024 License: Apache 2.0
 
@@ -1591,7 +1592,9 @@ void loop()
           String augmentedAnalogTableName = analogTableName; 
           if (augmentTableNameWithYear)
           {
-            augmentedAnalogTableName += (dateTimeUTCNow.year());     
+            // RoSchmi changed 10.07.2024 to resolve issue 1         
+            //augmentedAnalogTableName += (dateTimeUTCNow.year());
+            augmentedAnalogTableName += (localTime.year());  
           }
           
           // Create Azure Storage Table if table doesn't exist
