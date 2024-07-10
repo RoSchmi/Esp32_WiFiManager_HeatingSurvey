@@ -3,9 +3,13 @@
 // Last updated: 2024_07_10
 // Copyright: RoSchmi 2021, 2024 License: Apache 2.0
 
+// Now uses
+// platform espressif32@6.7.0 and platform_package framework-arduinoespressif32 @ 3.20017.0
 // In cases of a wrong (old) format of the LittleFS flash storage,
 // the flash must be cleared with the command (cmd window)
 // python C:\Users\<user>\.platformio\packages\tool-esptoolpy\esptool.py erase_flash
+
+// Definition of your TimeZone has to be made in config.h
 
 // The application doesn't compile without a trick:
 // The libraries NTPClient_Generic and Timezone_Generic load the
@@ -95,9 +99,10 @@ SET_LOOP_TASK_STACK_SIZE ( 16*1024 ); // 16KB
 uint8_t bufferStore[4000] {0};
 uint8_t * bufferStorePtr = &bufferStore[0];
 
-// Used to keep book of used stack
+
 void * StackPtrAtStart;
 void * StackPtrEnd;
+
 UBaseType_t watermarkStart;
 TaskHandle_t taskHandle_0 =  xTaskGetCurrentTaskHandleForCPU(0);
 TaskHandle_t taskHandle_1 =  xTaskGetCurrentTaskHandleForCPU(1);
@@ -309,20 +314,10 @@ uint8_t connectMultiWiFi();
 
   #if USE_LITTLEFS
     // Use LittleFS
-    #include "FS.h"
+    //#include "FS.h"
 
-    // The library has been merged into esp32 core release 1.0.6
-    // I tried hard to get it running with the version in esp32 core with
-    // no success, so I stayed with 'LITTLEFS.h'
-    
-    //#include <LITTLEFS.h>             // https://github.com/lorol/LITTLEFS
+    //Former: #include <LITTLEFS.h>             // https://github.com/lorol/LITTLEFS
     #include <LittleFS.h>
-    
-    /*
-    FS* filesystem =      &LITTLEFS;
-    #define FileFS        LITTLEFS
-    #define FS_Name       "LITTLEFS"
-    */
     
     FS* filesystem =      &LittleFS;
     #define FileFS        LittleFS
@@ -482,7 +477,7 @@ bool initialConfig = false;
 
 #if ( USE_DHCP_IP )
   // Use DHCP
-  #warning Using DHCP IP
+  //#warning Using DHCP IP
   IPAddress stationIP   = IPAddress(0, 0, 0, 0);
   IPAddress gatewayIP   = IPAddress(192, 168, 2, 1);
   IPAddress netMask     = IPAddress(255, 255, 255, 0);
@@ -807,6 +802,7 @@ bool readConfigFile()
     // See https://github.com/bblanchon/ArduinoJson/wiki/Memory%20model
 
 #if (ARDUINOJSON_VERSION_MAJOR >= 6)
+    
     DynamicJsonDocument json(1024);
     auto deserializeError = deserializeJson(json, buf.get());
     if ( deserializeError )
@@ -815,7 +811,7 @@ bool readConfigFile()
       return false;
     }
     Serial.println(F("Here we could print the WiFi Credentials read from SPIFFS/LittleFS"));
-    serializeJson(json, Serial);
+    //serializeJson(json, Serial);
 #else
     DynamicJsonBuffer jsonBuffer;
     // Parse JSON string
@@ -899,6 +895,7 @@ void setup()
    
   void* SpStart = NULL;
   StackPtrAtStart = (void *)&SpStart;
+  
   // Get StackHighWatermark at start of setup()
   watermarkStart =  uxTaskGetStackHighWaterMark(NULL);
   // Calculate (not exact) end-address of the stack
@@ -1117,7 +1114,7 @@ void setup()
 
   Serial.println(F("Here we could print the used WiFi-Credentials"));
   //Remove this line if you do not want to see WiFi password printed
-  Serial.println("ESP Self-Stored: SSID = " + Router_SSID + ", Pass = " + Router_Pass);
+  //Serial.println("ESP Self-Stored: SSID = " + Router_SSID + ", Pass = " + Router_Pass);
   
   ssid.toUpperCase();
   password = "My" + ssid;
