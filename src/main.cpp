@@ -9,6 +9,10 @@
 // the flash must be cleared with the command (cmd window)
 // python C:\Users\<user>\.platformio\packages\tool-esptoolpy\esptool.py erase_flash
 
+// If you still have problems with formatting the flash for LittleFS, try to use
+// https://github.com/RoSchmi/ESP32_LittleFS_Simple_Formatter
+
+
 // Definition of your TimeZone has to be made in config.h
 
 // The application doesn't compile without a trick:
