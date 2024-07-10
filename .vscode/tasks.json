@@ -11,6 +11,14 @@
 			"problemMatcher": [],
 			"label": "java (build): Build Workspace",
 			"detail": "$(tools) Build all the Java projects in workspace."
+		},
+		{
+			"type": "PlatformIO",
+			"task": "Verbose Build",
+			"problemMatcher": [
+				"$platformio"
+			],
+			"label": "PlatformIO: Verbose Build"
 		}
 	]
 }

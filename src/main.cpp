@@ -1,5 +1,5 @@
 // Program 'Esp32_WiFiManager_HeatingSurvey' Branch Port6.7.0
-// Last updated: 2024_07_08
+// Last updated: 2024_07_10
 // Copyright: RoSchmi 2021, 2024 License: Apache 2.0
 
 // In cases of a wrong (old) format of the LittleFS flash storage,
@@ -82,17 +82,6 @@
 
 // Now support ArduinoJson 6.0.0+ ( tested with v6.14.1 )
 #include "ArduinoJson.h"      // get it from https://arduinojson.org/ or install via Arduino library manager
-
-
-// Default Esp32 stack size of 8192 byte is not enough for this application.
-// --> configure stack size dynamically from code to 16384
-// https://community.platformio.org/t/esp32-stack-configuration-reloaded/20994/4
-// Patch: Replace C:\Users\thisUser\.platformio\packages\framework-arduinoespressif32\cores\esp32\main.cpp
-// with the file 'main.cpp' from folder 'patches' of this repository, then use the following code to configure stack size
-//#if !(USING_DEFAULT_ARDUINO_LOOP_STACK_SIZE)
-//  uint16_t USER_CONFIG_ARDUINO_LOOP_STACK_SIZE = 16384;
-// #endif
-
 
 // Default Esp32 stack size of 8192 byte is not enough for this application.
 // --> configure stack size dynamically from code to 16384
@@ -261,6 +250,10 @@ void GPIOPinISR()
   buttonPressed = true;
 }
 
+
+
+
+
 // function forward declarations
 void print_reset_reason(RESET_REASON reason);
 void scan_WIFI();
@@ -275,6 +268,9 @@ void makeRowKey(DateTime actDate, az_span outSpan, size_t *outSpanLength);
 int getDayNum(const char * day);
 int getMonNum(const char * month);
 int getWeekOfMonthNum(const char * weekOfMonth);
+uint8_t connectMultiWiFi();
+//bool readConfigFile();
+//bool writeConfigFile();
 
 
 // Here: Begin of WiFi Manager definitions
@@ -588,89 +584,7 @@ void configWiFi(WiFi_STA_IPConfig in_WM_STA_IPconfig)
 
 ///////////////////////////////////////////
 
-uint8_t connectMultiWiFi()
-{
-#if ESP32
-  // For ESP32, this better be 0 to shorten the connect time.
-  // For ESP32-S2/C3, must be > 500
-  #if ( USING_ESP32_S2 || USING_ESP32_C3 )
-    #define WIFI_MULTI_1ST_CONNECT_WAITING_MS           500L
-  #else
-    // For ESP32 core v1.0.6, must be >= 500
-    #define WIFI_MULTI_1ST_CONNECT_WAITING_MS           800L
-  #endif
-#else
-  // For ESP8266, this better be 2200 to enable connect the 1st time
-  #define WIFI_MULTI_1ST_CONNECT_WAITING_MS             2200L
-#endif
 
-#define WIFI_MULTI_CONNECT_WAITING_MS                   500L
-
-  uint8_t status;
-
-  //WiFi.mode(WIFI_STA);
-
-  LOGERROR(F("ConnectMultiWiFi with :"));
-
-  if ( (Router_SSID != "") && (Router_Pass != "") )
-  {
-    LOGERROR3(F("* Flash-stored Router_SSID = "), Router_SSID, F(", Router_Pass = "), Router_Pass );
-    LOGERROR3(F("* Add SSID = "), Router_SSID, F(", PW = "), Router_Pass );
-    wifiMulti.addAP(Router_SSID.c_str(), Router_Pass.c_str());
-  }
-
-  for (uint8_t i = 0; i < NUM_WIFI_CREDENTIALS; i++)
-  {
-    // Don't permit NULL SSID and password len < MIN_AP_PASSWORD_SIZE (8)
-    if ( (String(WM_config.WiFi_Creds[i].wifi_ssid) != "") && (strlen(WM_config.WiFi_Creds[i].wifi_pw) >= MIN_AP_PASSWORD_SIZE) )
-    {
-      LOGERROR3(F("* Additional SSID = "), WM_config.WiFi_Creds[i].wifi_ssid, F(", PW = "), WM_config.WiFi_Creds[i].wifi_pw );
-    }
-  }
-
-  LOGERROR(F("Connecting MultiWifi..."));
-
-  //WiFi.mode(WIFI_STA);
-
-#if !USE_DHCP_IP
-  // New in v1.4.0
-  configWiFi(WM_STA_IPconfig);
-  //////
-#endif
-
-  int i = 0;
-  status = wifiMulti.run();
-  delay(WIFI_MULTI_1ST_CONNECT_WAITING_MS);
-  
-  while ( ( i++ < 20 ) && ( status != WL_CONNECTED ) )
-  {
-    status = WiFi.status();
-
-    if ( status == WL_CONNECTED )
-      break;
-    else
-      delay(WIFI_MULTI_CONNECT_WAITING_MS);
-  }
-  
-  if ( status == WL_CONNECTED )
-  {
-    LOGERROR1(F("WiFi connected after time: "), i);
-    LOGERROR3(F("SSID:"), WiFi.SSID(), F(",RSSI="), WiFi.RSSI());
-    LOGERROR3(F("Channel:"), WiFi.channel(), F(",IP address:"), WiFi.localIP() );
-  }
-  else
-  {
-    LOGERROR(F("WiFi not connected"));
- 
-#if ESP8266      
-    ESP.reset();
-#else
-    ESP.restart();
-#endif  
-  }
-
-  return status;
-}
 
 void toggleLED()
 {
@@ -900,7 +814,7 @@ bool readConfigFile()
       return false;
     }
     Serial.println(F("Here we could print the WiFi Credentials read from SPIFFS/LittleFS"));
-    //serializeJson(json, Serial);
+    serializeJson(json, Serial);
 #else
     DynamicJsonBuffer jsonBuffer;
     // Parse JSON string
@@ -975,13 +889,13 @@ bool writeConfigFile()
   return true;
 }
 
+
+
 void setup()
 {
   // put your setup code here, to run once:
   // Get Stackptr at start of setup()
-  
-  
-  
+   
   void* SpStart = NULL;
   StackPtrAtStart = (void *)&SpStart;
   // Get StackHighWatermark at start of setup()
@@ -1026,7 +940,8 @@ void setup()
 
   delay(4000);
   
-  //attachInterrupt(GPIOPin, GPIOPinISR, RISING);
+  // is needed for Button
+  // attachInterrupt(GPIOPin, GPIOPinISR, RISING);
   
   Serial.printf("\r\n\r\nAddress of Stackpointer near start is:  %p \r\n",  (void *)StackPtrAtStart);
   Serial.printf("End of Stack is near:                   %p \r\n",  (void *)StackPtrEnd);
@@ -1093,24 +1008,31 @@ void setup()
     Serial.println(ESP_ASYNC_WIFIMANAGER_VERSION_MIN_TARGET);
   }
   
+  // 
   Serial.setDebugOutput(false);
-
-  if (FORMAT_FILESYSTEM) 
-    FileFS.format();
-
-  // Format FileFS if not yet
-#ifdef ESP32
-  if (!FileFS.begin(true))
-#else
-  if (!FileFS.begin())
-#endif
-  {
-#ifdef ESP8266
-    FileFS.format();
-#endif
-
-    Serial.println(F("SPIFFS/LittleFS failed! Already tried formatting."));
   
+  if (FORMAT_FILESYSTEM)
+  {
+    #ifdef ESP32
+      FileFS.begin(false, "/littlefs", 10, "spiffs");
+    #endif
+    FileFS.format();
+  }
+  else
+  {
+  #ifdef ESP32
+    FileFS.begin(false, "/littlefs", 10, "spiffs");
+    if (!FileFS.begin(true, "/littlefs", 10, "spiffs"))
+    {
+      Serial.println(F("SPIFFS/LittleFS failed! Already tried formatting."));
+    }
+  #else
+    if (!FileFS.begin())
+    {
+      Serial.println(F("SPIFFS/LittleFS failed! Already tried formatting."));
+    }
+  #endif
+  }     
     if (!FileFS.begin())
     {     
       // prevents debug info from the library to hide err message.
@@ -1127,7 +1049,7 @@ void setup()
         delay(1);
       }
     }
-  }
+  
 
   unsigned long startedAt = millis();
 
@@ -1405,10 +1327,12 @@ void setup()
   uint8_t status;
   int i = 0;
   status = wifiMulti.run();
-  delay(WIFI_MULTI_1ST_CONNECT_WAITING_MS);
+             
+  delay(800L);  //(WIFI_MULTI_1ST_CONNECT_WAITING_MS) 
 
   bool Connected_To_Router = connect_Wifi(Router_SSID.c_str(), Router_Pass.c_str());
-  /*
+  
+  /* Alternativ routine to connect (from Khoih-prog example)
   while ( ( i++ < 20 ) && ( status != WL_CONNECTED ) )
   {
     status = WiFi.status();
@@ -1846,6 +1770,90 @@ void loop()
         } 
       }     
   } 
+}
+
+uint8_t connectMultiWiFi()
+{
+#if ESP32
+  // For ESP32, this better be 0 to shorten the connect time.
+  // For ESP32-S2/C3, must be > 500
+  #if ( USING_ESP32_S2 || USING_ESP32_C3 )
+    #define WIFI_MULTI_1ST_CONNECT_WAITING_MS           500L
+  #else
+    // For ESP32 core v1.0.6, must be >= 500
+    #define WIFI_MULTI_1ST_CONNECT_WAITING_MS           800L
+  #endif
+#else
+  // For ESP8266, this better be 2200 to enable connect the 1st time
+  #define WIFI_MULTI_1ST_CONNECT_WAITING_MS             2200L
+#endif
+
+#define WIFI_MULTI_CONNECT_WAITING_MS                   500L
+
+  uint8_t status;
+
+  //WiFi.mode(WIFI_STA);
+
+  LOGERROR(F("ConnectMultiWiFi with :"));
+
+  if ( (Router_SSID != "") && (Router_Pass != "") )
+  {
+    LOGERROR3(F("* Flash-stored Router_SSID = "), Router_SSID, F(", Router_Pass = "), Router_Pass );
+    LOGERROR3(F("* Add SSID = "), Router_SSID, F(", PW = "), Router_Pass );
+    wifiMulti.addAP(Router_SSID.c_str(), Router_Pass.c_str());
+  }
+
+  for (uint8_t i = 0; i < NUM_WIFI_CREDENTIALS; i++)
+  {
+    // Don't permit NULL SSID and password len < MIN_AP_PASSWORD_SIZE (8)
+    if ( (String(WM_config.WiFi_Creds[i].wifi_ssid) != "") && (strlen(WM_config.WiFi_Creds[i].wifi_pw) >= MIN_AP_PASSWORD_SIZE) )
+    {
+      LOGERROR3(F("* Additional SSID = "), WM_config.WiFi_Creds[i].wifi_ssid, F(", PW = "), WM_config.WiFi_Creds[i].wifi_pw );
+    }
+  }
+
+  LOGERROR(F("Connecting MultiWifi..."));
+
+  //WiFi.mode(WIFI_STA);
+
+#if !USE_DHCP_IP
+  // New in v1.4.0
+  configWiFi(WM_STA_IPconfig);
+  //////
+#endif
+
+  int i = 0;
+  status = wifiMulti.run();
+  delay(WIFI_MULTI_1ST_CONNECT_WAITING_MS);
+  
+  while ( ( i++ < 20 ) && ( status != WL_CONNECTED ) )
+  {
+    status = WiFi.status();
+
+    if ( status == WL_CONNECTED )
+      break;
+    else
+      delay(WIFI_MULTI_CONNECT_WAITING_MS);
+  }
+  
+  if ( status == WL_CONNECTED )
+  {
+    LOGERROR1(F("WiFi connected after time: "), i);
+    LOGERROR3(F("SSID:"), WiFi.SSID(), F(",RSSI="), WiFi.RSSI());
+    LOGERROR3(F("Channel:"), WiFi.channel(), F(",IP address:"), WiFi.localIP() );
+  }
+  else
+  {
+    LOGERROR(F("WiFi not connected"));
+ 
+#if ESP8266      
+    ESP.reset();
+#else
+    ESP.restart();
+#endif  
+  }
+
+  return status;
 }
 
 // To manage daylightsavingstime stuff convert input ("Last", "First", "Second", "Third", "Fourth") to int equivalent
@@ -2361,6 +2369,8 @@ az_http_status_code insertTableEntity(CloudStorageAccount *pAccountPtr,  X509Cer
   
   return statusCode;
 }
+
+
 
 void print_reset_reason(RESET_REASON reason)
 {
