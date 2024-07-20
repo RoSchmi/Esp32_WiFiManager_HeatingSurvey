@@ -19,6 +19,15 @@
 				"$platformio"
 			],
 			"label": "PlatformIO: Verbose Build"
+		},
+		{
+			"type": "PlatformIO",
+			"task": "Build",
+			"problemMatcher": [
+				"$platformio"
+			],
+			"group": "build",
+			"label": "PlatformIO: Build"
 		}
 	]
 }

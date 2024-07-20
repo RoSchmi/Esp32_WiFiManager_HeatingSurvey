@@ -1,6 +1,6 @@
 // Program 'Esp32_WiFiManager_HeatingSurvey' Branch Master
 
-// Last updated: 2024_07_10
+// Last updated: 2024_07_20
 // Copyright: RoSchmi 2021, 2024 License: Apache 2.0
 
 // Now uses
@@ -42,6 +42,7 @@
 // This App uses an adaption of the 'Async_ConfigOnStartup.ino' as WiFi Mangager
 // from: -https://github.com/khoih-prog/ESPAsync_WiFiManager 
 // More infos about the functions and Licenses see:
+// -https://github.com/khoih-prog/ESPAsync_WiFiManager/blob/master/examples/Async_ConfigOnDoubleReset_Multi
 // -https://github.com/khoih-prog/ESPAsync_WiFiManager/tree/master/examples/Async_ConfigOnStartup
  
 
@@ -232,7 +233,7 @@ int32_t sysTimeNtpDelta = 0;
 static bool UseHttps_State = TRANSPORT_PROTOCOL == 0 ? false : true;
 
 // RoSchmi
-const char * CONFIG_FILE = "/ConfigSW.json";
+const char * CONFIG_FILE = "/ConfigSW.json";    // Conviguration Azure and threshold
 
 #define AZURE_CONFIG_ACCOUNT_NAME "AzureStorageAccName"
 
@@ -259,10 +260,6 @@ void GPIOPinISR()
 {
   buttonPressed = true;
 }
-
-
-
-
 
 // function forward declarations
 void print_reset_reason(RESET_REASON reason);
@@ -294,7 +291,7 @@ uint8_t connectMultiWiFi();
 #define ESP_ASYNC_WIFIMANAGER_VERSION_MIN_TARGET     "ESPAsync_WiFiManager v1.10.1"
 
 // Use from 0 to 4. Higher number, more debugging messages and memory usage.
-#define _ESPASYNC_WIFIMGR_LOGLEVEL_    0
+#define _ESPASYNC_WIFIMGR_LOGLEVEL_  0
 
 //For ESP32, To use ESP32 Dev Module, QIO, Flash 4MB/80MHz, Upload 921600
 
@@ -714,7 +711,7 @@ int calcChecksum(uint8_t* address, uint16_t sizeToCalc)
   return checkSum;
 }
 
-bool loadConfigData()
+bool loadConfigData()    // Load configuration to access Router WiFi-STA from SPIFFS/LittleFS
 {
   File file = FileFS.open(CONFIG_FILENAME, "r");
   LOGERROR(F("LoadWiFiCfgFile "));
@@ -729,6 +726,9 @@ bool loadConfigData()
   {
     file.readBytes((char *) &WM_config,   sizeof(WM_config));
 
+    // RoSchmi 12.07.2024
+    
+    String theString = (char *) &WM_config.WiFi_Creds;
     // New in v1.4.0
     file.readBytes((char *) &WM_STA_IPconfig, sizeof(WM_STA_IPconfig));
     //////
@@ -744,6 +744,8 @@ bool loadConfigData()
     }
     
     // New in v1.4.0
+    // RoSchmi added
+    LOGERROR(F("RoSchmi display WM_STA_IPconfig")); 
     displayIPConfigStruct(WM_STA_IPconfig);
     //////
 
@@ -781,7 +783,7 @@ void saveConfigData()
   }
 }
 
-bool readConfigFile()
+bool readConfigFile()    // Config parameter for Azure credentials and threshold
 {
   // this opens the config file in read-mode
   File f = FileFS.open(CONFIG_FILE, "r");
@@ -814,8 +816,8 @@ bool readConfigFile()
       Serial.println(F("JSON parseObject() failed"));
       return false;
     }
-    Serial.println(F("Here we could print the WiFi Credentials read from SPIFFS/LittleFS"));
-    //serializeJson(json, Serial);
+    Serial.println(F("Here we could print the custom parameters like Azure Credentials read from SPIFFS/LittleFS"));
+    serializeJson(json, Serial);
 #else
     DynamicJsonBuffer jsonBuffer;
     // Parse JSON string
@@ -844,7 +846,7 @@ bool readConfigFile()
       strcpy(sSwiThresholdStr, json[SoundSwitcherThresholdString_Label]);      
     }
   }
-  Serial.println(F("\nConfig file was successfully parsed")); 
+  Serial.println(F("\nCustom config file was successfully parsed")); 
   return true;
 }
 
@@ -938,7 +940,7 @@ void setup()
   pinMode(LED_BUILTIN, OUTPUT);
   
   Serial.begin(115200);
-  //while (!Serial);
+  while (!Serial);
 
   delay(4000);
   
@@ -1022,8 +1024,8 @@ void setup()
   }
   else
   {
-  #ifdef ESP32
-    FileFS.begin(false, "/littlefs", 10, "spiffs");
+  #ifdef ESP32 
+    FileFS.begin(false, "/littlefs", 10, "spiffs");  // First with parameter false
     if (!FileFS.begin(true, "/littlefs", 10, "spiffs"))
     {
       Serial.println(F("SPIFFS/LittleFS failed! Already tried formatting."));
@@ -1056,11 +1058,11 @@ void setup()
   unsigned long startedAt = millis();
 
   // New in v1.4.0
-  initAPIPConfigStruct(WM_AP_IPconfig);
-  initSTAIPConfigStruct(WM_STA_IPconfig);
+  initAPIPConfigStruct(WM_AP_IPconfig);    // For Access Point
+  initSTAIPConfigStruct(WM_STA_IPconfig);  // For WiFi-STA Mode, Connect with router
   //////
 
-  if (!readConfigFile())
+  if (!readConfigFile())       // For Azure Credentials and threshold
   {
     Serial.println(F("Failed to read ConfigFile, using default values"));
   }
@@ -1078,7 +1080,7 @@ void setup()
   //DNSServer dnsServer;
   AsyncDNSServer dnsServer;
   
-  //dnsServer.start()
+  //dnsServer.start();
   
   
   ESPAsync_WiFiManager ESPAsync_wifiManager(&webServer, &dnsServer, "AsyncConfigOnStartup");
@@ -1116,9 +1118,9 @@ void setup()
   Router_SSID = ESPAsync_wifiManager.WiFi_SSID();
   Router_Pass = ESPAsync_wifiManager.WiFi_Pass();
 
-  Serial.println(F("Here we could print the used WiFi-Credentials"));
+  Serial.println(F("Here we could print the used Router WiFi-Credentials"));
   //Remove this line if you do not want to see WiFi password printed
-  //Serial.println("ESP Self-Stored: SSID = " + Router_SSID + ", Pass = " + Router_Pass);
+  Serial.println("ESP Self-Stored: Router-SSID = " + Router_SSID + ", Router-Pass = " + Router_Pass);
   
   ssid.toUpperCase();
   password = "My" + ssid;
@@ -1157,10 +1159,10 @@ void setup()
     ESPAsync_wifiManager.setConfigPortalTimeout(60); //If no access point name has been previously entered disable timeout.
     Serial.println(F("Here we could print the used WiFi-Credentials"));
     //Remove this line if you do not want to see WiFi password printed
-    //Serial.println(F("Got ESP Self-Stored Credentials. Timeout 60s for Config Portal"));
+    Serial.println(F("Got ESP Self-Stored Credentials. Timeout 60s for Config Portal"));
   }
   
-  if (loadConfigData())
+  if (loadConfigData())   // Load credentials for Router WiFi STA connection from SPIFFS/LittleFS    
   {
     configDataLoaded = true;
     
@@ -1232,7 +1234,11 @@ void setup()
     {
       String tempSSID = ESPAsync_wifiManager.getSSID(i);
       String tempPW   = ESPAsync_wifiManager.getPW(i);
-  
+      
+      // RoSchmi Test 20.07.2024
+      int lengthTempSSID = strlen(tempSSID.c_str());
+      int WM_Config_SSID = sizeof(WM_config.WiFi_Creds[i].wifi_ssid) - 1;
+      // Check if length of SSID and password fit into the place in the struct
       if (strlen(tempSSID.c_str()) < sizeof(WM_config.WiFi_Creds[i].wifi_ssid) - 1)
         strcpy(WM_config.WiFi_Creds[i].wifi_ssid, tempSSID.c_str());
       else
@@ -1304,7 +1310,11 @@ void setup()
 
   digitalWrite(LED_BUILTIN, LED_OFF); // Turn led off as we are not in configuration mode.
 
+  
+
   startedAt = millis();
+
+
 
   // Azure Acount must be updated here with eventually changed values from WiFi-Manager
   myCloudStorageAccount.ChangeAccountParams((char *)azureAccountName, (char *)azureAccountKey, UseHttps_State);
@@ -1324,7 +1334,26 @@ void setup()
     //https://www.az-delivery.de/blogs/azdelivery-blog-fur-arduino-und-raspberry-pi/watchdog-und-heartbeat
 
     //https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/system/wdts.html
-  #endif 
+  #endif
+
+   if ( WiFi.status() != WL_CONNECTED )
+    {
+      Serial.println(F("ConnectMultiWiFi in setup"));
+
+      connectMultiWiFi();
+    }
+
+    Serial.print(F("After waiting "));
+  Serial.print((float) (millis() - startedAt) / 1000);
+  Serial.print(F(" secs more in setup(), connection result is "));
+
+  if (WiFi.status() == WL_CONNECTED)
+  {
+    Serial.print(F("connected. Local IP: "));
+    Serial.println(WiFi.localIP());
+  }
+  else
+    Serial.println(ESPAsync_wifiManager.getStatus(WiFi.status()));
 
   uint8_t status;
   int i = 0;
@@ -1332,9 +1361,10 @@ void setup()
              
   delay(800L);  //(WIFI_MULTI_1ST_CONNECT_WAITING_MS) 
 
-  bool Connected_To_Router = connect_Wifi(Router_SSID.c_str(), Router_Pass.c_str());
+  //bool Connected_To_Router = connect_Wifi(Router_SSID.c_str(), Router_Pass.c_str());
   
-  /* Alternativ routine to connect (from Khoih-prog example)
+  // Alternativ routine to connect (from Khoih-prog example)
+  /*
   while ( ( i++ < 20 ) && ( status != WL_CONNECTED ) )
   {
     status = WiFi.status();
@@ -1810,9 +1840,15 @@ uint8_t connectMultiWiFi()
   for (uint8_t i = 0; i < NUM_WIFI_CREDENTIALS; i++)
   {
     // Don't permit NULL SSID and password len < MIN_AP_PASSWORD_SIZE (8)
+    // RoSchmi added for tests
+    String SSID_String = String(WM_config.WiFi_Creds[i].wifi_ssid);
+    String PasswString = String(WM_config.WiFi_Creds[i].wifi_pw);
+    volatile size_t PasswLength = strlen(WM_config.WiFi_Creds[i].wifi_pw);
     if ( (String(WM_config.WiFi_Creds[i].wifi_ssid) != "") && (strlen(WM_config.WiFi_Creds[i].wifi_pw) >= MIN_AP_PASSWORD_SIZE) )
     {
       LOGERROR3(F("* Additional SSID = "), WM_config.WiFi_Creds[i].wifi_ssid, F(", PW = "), WM_config.WiFi_Creds[i].wifi_pw );
+      //RoSchmi added 20.07.2024
+      wifiMulti.addAP(WM_config.WiFi_Creds[i].wifi_ssid, WM_config.WiFi_Creds[i].wifi_pw);
     }
   }
 
