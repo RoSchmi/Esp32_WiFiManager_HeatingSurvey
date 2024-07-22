@@ -114,13 +114,7 @@
         #warning Using ESP32 Core 1.0.6 or 2.0.0+
       #endif
       
-      // The library has been merged into esp32 core from release 1.0.6
-      // but I couldn't get it working
       
-      /*
-      #include <LITTLEFS.h>
-      #define FileFS   LITTLEFS
-      */
       
       #include <LittleFS.h>
       #define FileFS   LittleFS

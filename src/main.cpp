@@ -3,8 +3,11 @@
 // Last updated: 2024_07_20
 // Copyright: RoSchmi 2021, 2024 License: Apache 2.0
 
+
 // Now uses
 // platform espressif32@6.7.0 and platform_package framework-arduinoespressif32 @ 3.20017.0
+// Switched to built-in Filesystem 'LittleFS' instead of 'LITTLEFS'
+//
 // In cases of a wrong (old) format of the LittleFS flash storage,
 // the flash must be cleared with the command (cmd window)
 // python C:\Users\<user>\.platformio\packages\tool-esptoolpy\esptool.py erase_flash
@@ -104,7 +107,6 @@ SET_LOOP_TASK_STACK_SIZE ( 16*1024 ); // 16KB
 uint8_t bufferStore[4000] {0};
 uint8_t * bufferStorePtr = &bufferStore[0];
 
-
 void * StackPtrAtStart;
 void * StackPtrEnd;
 
@@ -142,11 +144,7 @@ const bool augmentPartitionKey = true;
 // The TableName can be augmented with the actual year (recommended)
 const bool augmentTableNameWithYear = true;
 
-#define LED_BUILTIN 2
-
-//RoSchmi
-//const char *ssid = IOT_CONFIG_WIFI_SSID;
-//const char *password = IOT_CONFIG_WIFI_PASSWORD;
+//#define LED_BUILTIN 2
 
 typedef const char* X509Certificate;
 
@@ -206,7 +204,6 @@ SoundSwitcher soundSwitcher(pin_config_Esp32_dev, usedMicType);
 
 FeedResponse feedResult;
 
-//int soundSwitcherThreshold = SOUNDSWITCHER_THRESHOLD;
 int soundSwitcherUpdateInterval = SOUNDSWITCHER_UPDATEINTERVAL;
 uint32_t soundSwitcherReadDelayTime = SOUNDSWITCHER_READ_DELAYTIME;
 
@@ -283,7 +280,6 @@ uint8_t connectMultiWiFi();
 // Here: Begin of WiFi Manager definitions
 //***************************************************************
 
-
 #if !( defined(ESP8266) ||  defined(ESP32) )
   #error This code is intended to run on the ESP8266 or ESP32 platform! Please check your Tools->Board setting.
 #endif
@@ -291,9 +287,11 @@ uint8_t connectMultiWiFi();
 #define ESP_ASYNC_WIFIMANAGER_VERSION_MIN_TARGET     "ESPAsync_WiFiManager v1.10.1"
 
 // Use from 0 to 4. Higher number, more debugging messages and memory usage.
-#define _ESPASYNC_WIFIMGR_LOGLEVEL_  0
+// (Debug Level) should be defined in config.h
+#ifndef _ESPASYNC_WIFIMGR_LOGLEVEL_
+  #define _ESPASYNC_WIFIMGR_LOGLEVEL_ 0
+#endif
 
-//For ESP32, To use ESP32 Dev Module, QIO, Flash 4MB/80MHz, Upload 921600
 
 //Ported to ESP32
 #ifdef ESP32
@@ -315,8 +313,7 @@ uint8_t connectMultiWiFi();
 
   #if USE_LITTLEFS
     // Use LittleFS
-    //#include "FS.h"
-
+    
     //Former: #include <LITTLEFS.h>             // https://github.com/lorol/LITTLEFS
     #include <LittleFS.h>
     
@@ -383,6 +380,7 @@ String password;
 String Router_SSID;
 String Router_Pass;
 
+
 // You only need to format the filesystem once
 //#define FORMAT_FILESYSTEM       true
 #define FORMAT_FILESYSTEM         false
@@ -393,17 +391,21 @@ String Router_Pass;
 //WPA2 passwords can be up to 63 characters long.
 #define PASS_MAX_LEN            64
 
+
 typedef struct
 {
   char wifi_ssid[SSID_MAX_LEN];
   char wifi_pw  [PASS_MAX_LEN];
 }  WiFi_Credentials;
 
+
+/*
 typedef struct
 {
   String wifi_ssid;
   String wifi_pw;
 }  WiFi_Credentials_String;
+*/
 
 #define NUM_WIFI_CREDENTIALS      2
 
@@ -420,6 +422,8 @@ typedef struct
 } WM_Config;
 
 WM_Config         WM_config;
+
+WM_Config         Loaded_WM_config;
 
 #define  CONFIG_FILENAME              F("/wifi_cred.dat")
 //////
@@ -538,8 +542,8 @@ typedef struct
 }  WiFi_STA_IPConfig;
 ******************************************/
 
-WiFi_AP_IPConfig  WM_AP_IPconfig;
-WiFi_STA_IPConfig WM_STA_IPconfig;
+WiFi_AP_IPConfig  WM_AP_IPconfig;        // For Access Point
+WiFi_STA_IPConfig WM_STA_IPconfig;       // For Router STA connection
 
 void initAPIPConfigStruct(WiFi_AP_IPConfig &in_WM_AP_IPconfig)
 {
@@ -580,8 +584,6 @@ void configWiFi(WiFi_STA_IPConfig in_WM_STA_IPconfig)
 }
 
 ///////////////////////////////////////////
-
-
 
 void toggleLED()
 {
@@ -728,10 +730,22 @@ bool loadConfigData()    // Load configuration to access Router WiFi-STA from SP
 
     // RoSchmi 12.07.2024
     
-    String theString = (char *) &WM_config.WiFi_Creds;
+    String theSSID = (char *) &WM_config.WiFi_Creds[0].wifi_ssid;
+    String theSSID1 = (char *) &WM_config.WiFi_Creds[1].wifi_ssid;
+    Serial.println("");
+    Serial.println("*******************");
+    Serial.println(theSSID);
+    Serial.println(theSSID1);
+    Serial.println("*******************");
+
     // New in v1.4.0
     file.readBytes((char *) &WM_STA_IPconfig, sizeof(WM_STA_IPconfig));
     //////
+    
+    // RoSchmi 12.07.2024
+    
+    String theSecondCredsString = (char *) &WM_STA_IPconfig._sta_static_ip;
+
 
     file.close();
     LOGERROR(F("OK"));
@@ -817,7 +831,7 @@ bool readConfigFile()    // Config parameter for Azure credentials and threshold
       return false;
     }
     Serial.println(F("Here we could print the custom parameters like Azure Credentials read from SPIFFS/LittleFS"));
-    serializeJson(json, Serial);
+    //serializeJson(json, Serial);
 #else
     DynamicJsonBuffer jsonBuffer;
     // Parse JSON string
@@ -876,7 +890,7 @@ bool writeConfigFile()
 
 #if (ARDUINOJSON_VERSION_MAJOR >= 6)
   Serial.println(F("Here we could print the parameter written to flash"));
-  serializeJsonPretty(json, Serial);
+  //serializeJsonPretty(json, Serial);
 
   // Write data to file and close it
   serializeJson(json, f);
@@ -1150,16 +1164,22 @@ void setup()
   
   bool configDataLoaded = false;
 
+
+
   // From v1.1.0, Don't permit NULL password
   if ( (Router_SSID != "") && (Router_Pass != "") )
   {
-    LOGERROR3(F("* Add SSID = "), Router_SSID, F(", PW = "), Router_Pass);
+    LOGERROR3(F("From v1.1.0 * Add SSID = "), Router_SSID, F(", PW = "), Router_Pass);
     wifiMulti.addAP(Router_SSID.c_str(), Router_Pass.c_str());
-    
+    ESPAsync_wifiManager.getSSID();
     ESPAsync_wifiManager.setConfigPortalTimeout(60); //If no access point name has been previously entered disable timeout.
     Serial.println(F("Here we could print the used WiFi-Credentials"));
     //Remove this line if you do not want to see WiFi password printed
     Serial.println(F("Got ESP Self-Stored Credentials. Timeout 60s for Config Portal"));
+  }
+  else
+  {
+    LOGERROR3(F("From v1.1.0 * Neglect SSID = "), Router_SSID, F(", PW = "), Router_Pass);
   }
   
   if (loadConfigData())   // Load credentials for Router WiFi STA connection from SPIFFS/LittleFS    
@@ -1168,7 +1188,66 @@ void setup()
     
     ESPAsync_wifiManager.setConfigPortalTimeout(60); //If no access point name has been previously entered disable timeout.
     Serial.println(F("Got stored Credentials. Timeout 60s for Config Portal"));
+    
+    // Added by RoSchmi
+    // Store credentials read from file in backstore for later use
+    memcpy(&Loaded_WM_config, &WM_config, sizeof(Loaded_WM_config));
+    
+    Serial.println("Printing Credentials saved in Backstore");
+    Serial.println(Loaded_WM_config.WiFi_Creds[0].wifi_ssid);
+    Serial.println(Loaded_WM_config.WiFi_Creds[0].wifi_pw);
+    Serial.println(Loaded_WM_config.WiFi_Creds[1].wifi_ssid);
+    Serial.println(Loaded_WM_config.WiFi_Creds[1].wifi_pw);
+    
+    
+    // Then clear the passwords, to be not seen in the captive page
+    // the SSID are always displayed
+    // memset(&WM_config.WiFi_Creds[0].wifi_pw, 0, sizeof(WM_config.WiFi_Creds[0].wifi_pw));
+    // memset(&WM_config.WiFi_Creds[1].wifi_pw, 0, sizeof(WM_config.WiFi_Creds[1].wifi_pw));
+    
+    //memset(&WM_config.WiFi_Creds[0].wifi_pw, 0, PASS_MAX_LEN);
+    //memset(&WM_config.WiFi_Creds[1].wifi_pw, 0, PASS_MAX_LEN);
+    
+    /*
+    char* emptyBuffer [PASS_MAX_LEN] {};
+    strncpy(WM_config.WiFi_Creds[0].wifi_pw, (const char*)emptyBuffer, PASS_MAX_LEN - 1);
+    strncpy(WM_config.WiFi_Creds[1].wifi_pw, (const char*)emptyBuffer, PASS_MAX_LEN - 1);
+    */
+#if DISPLAY_STORED_CREDENTIALS_IN_CP
+    // New. Update Credentials, got from loadConfigData(), to display on CP
+    ESPAsync_wifiManager.setCredentials(WM_config.WiFi_Creds[0].wifi_ssid, WM_config.WiFi_Creds[0].wifi_pw,
+                                        WM_config.WiFi_Creds[1].wifi_ssid, WM_config.WiFi_Creds[1].wifi_pw);
+#endif
 
+/*
+#if DISPLAY_STORED_CREDENTIALS_IN_CP
+    
+    // New. Update Credentials, got from loadConfigData(), to display on CP
+    strncpy(WM_config.WiFi_Creds[0].wifi_ssid, Loaded_WM_config.WiFi_Creds[0].wifi_ssid, strlen(Loaded_WM_config.WiFi_Creds[0].wifi_ssid));
+    strncpy(WM_config.WiFi_Creds[0].wifi_pw, Loaded_WM_config.WiFi_Creds[0].wifi_pw, strlen(Loaded_WM_config.WiFi_Creds[0].wifi_pw));
+    strncpy(WM_config.WiFi_Creds[1].wifi_ssid, Loaded_WM_config.WiFi_Creds[1].wifi_ssid, strlen(Loaded_WM_config.WiFi_Creds[1].wifi_ssid));
+    strncpy(WM_config.WiFi_Creds[1].wifi_pw, Loaded_WM_config.WiFi_Creds[1].wifi_pw, strlen(Loaded_WM_config.WiFi_Creds[1].wifi_pw));  
+    Serial.println("Setting all Credentials for Captive Portal");
+    ESPAsync_wifiManager.setCredentials(WM_config.WiFi_Creds[0].wifi_ssid, WM_config.WiFi_Creds[0].wifi_pw,
+                                        WM_config.WiFi_Creds[1].wifi_ssid, WM_config.WiFi_Creds[1].wifi_pw);
+#else
+    const char emptyChar[1] {};
+    strncpy(WM_config.WiFi_Creds[0].wifi_ssid, Loaded_WM_config.WiFi_Creds[0].wifi_ssid, strlen(Loaded_WM_config.WiFi_Creds[0].wifi_ssid));
+    strncpy(WM_config.WiFi_Creds[0].wifi_pw, Loaded_WM_config.WiFi_Creds[0].wifi_pw, strlen(Loaded_WM_config.WiFi_Creds[0].wifi_pw));
+    //strncpy(WM_config.WiFi_Creds[0].wifi_pw, emptyChar, strlen(emptyChar));
+    strncpy(WM_config.WiFi_Creds[1].wifi_ssid, Loaded_WM_config.WiFi_Creds[1].wifi_ssid, strlen(Loaded_WM_config.WiFi_Creds[1].wifi_ssid));
+    strncpy(WM_config.WiFi_Creds[1].wifi_pw, Loaded_WM_config.WiFi_Creds[1].wifi_pw, strlen(Loaded_WM_config.WiFi_Creds[1].wifi_pw));  
+    //strncpy(WM_config.WiFi_Creds[1].wifi_pw, emptyChar, strlen(emptyChar));  
+    Serial.println("Setting Credentials (SSID only ) for Captive Portal");
+    ESPAsync_wifiManager.setCredentials(WM_config.WiFi_Creds[0].wifi_ssid, WM_config.WiFi_Creds[0].wifi_pw,
+                                        WM_config.WiFi_Creds[1].wifi_ssid, WM_config.WiFi_Creds[0].wifi_pw);
+#endif
+*/
+    /*
+    Serial.println("Setting Credentials for Captive Portal");
+    ESPAsync_wifiManager.setCredentials(WM_config.WiFi_Creds[0].wifi_ssid, WM_config.WiFi_Creds[0].wifi_pw,
+                                        WM_config.WiFi_Creds[1].wifi_ssid, WM_config.WiFi_Creds[1].wifi_pw);
+     */
 #if USE_ESP_WIFIMANAGER_NTP      
     if ( strlen(WM_config.TZ_Name) > 0 )
     {
@@ -1220,6 +1299,9 @@ void setup()
     //ESPAsync_wifiManager.setConfigPortalTimeout(600);
 
     // Starts an access point
+    
+    
+
     if (!ESPAsync_wifiManager.startConfigPortal((const char *) ssid.c_str(), password.c_str()))
       Serial.println(F("Not connected to WiFi but continuing anyway."));
     else
@@ -1234,10 +1316,40 @@ void setup()
     {
       String tempSSID = ESPAsync_wifiManager.getSSID(i);
       String tempPW   = ESPAsync_wifiManager.getPW(i);
+      Serial.println("Credentials before");
+      Serial.println(tempSSID);
+      Serial.println(tempPW);
       
+      if (tempSSID.isEmpty())
+      {
+        tempSSID = Loaded_WM_config.WiFi_Creds[i].wifi_ssid;
+        
+        //strncpy(WM_config.WiFi_Creds[i].wifi_ssid, Loaded_WM_config.WiFi_Creds[i].wifi_ssid, SSID_MAX_LEN -1);
+        Serial.println("After tempSSID is empty");
+        Serial.println(tempSSID);
+      }
+      else
+      {
+        Serial.println("After tempSSID is not empty");
+        Serial.println(tempSSID);
+      }
+      //tempSSID = tempSSID.isEmpty() ? Loaded_WM_config.WiFi_Creds[i].wifi_ssid : String();
+      if (tempPW.isEmpty())
+      {
+        tempPW = Loaded_WM_config.WiFi_Creds[i].wifi_pw;
+        //strncpy(WM_config.WiFi_Creds[i].wifi_pw, Loaded_WM_config.WiFi_Creds[i].wifi_pw, PASS_MAX_LEN -1);
+      }
+      
+      //tempPW = tempPW.isEmpty() ? Loaded_WM_config.WiFi_Creds[i].wifi_pw : String();
+      
+      Serial.println("Credentials after");
+      Serial.println(tempSSID);
+      Serial.println(tempPW);
+
+
       // RoSchmi Test 20.07.2024
-      int lengthTempSSID = strlen(tempSSID.c_str());
-      int WM_Config_SSID = sizeof(WM_config.WiFi_Creds[i].wifi_ssid) - 1;
+      volatile int lengthTempSSID = strlen(tempSSID.c_str());
+      volatile int WM_Config_SSID = sizeof(WM_config.WiFi_Creds[i].wifi_ssid) - 1;
       // Check if length of SSID and password fit into the place in the struct
       if (strlen(tempSSID.c_str()) < sizeof(WM_config.WiFi_Creds[i].wifi_ssid) - 1)
         strcpy(WM_config.WiFi_Creds[i].wifi_ssid, tempSSID.c_str());
@@ -1252,8 +1364,13 @@ void setup()
       // Don't permit NULL SSID and password len < MIN_AP_PASSWORD_SIZE (8)
       if ( (String(WM_config.WiFi_Creds[i].wifi_ssid) != "") && (strlen(WM_config.WiFi_Creds[i].wifi_pw) >= MIN_AP_PASSWORD_SIZE) )
       {
-        LOGERROR3(F("* Add SSID = "), WM_config.WiFi_Creds[i].wifi_ssid, F(", PW = "), WM_config.WiFi_Creds[i].wifi_pw );
+        LOGERROR3(F("In Setup * Add SSID = "), WM_config.WiFi_Creds[i].wifi_ssid, F(", PW = "), WM_config.WiFi_Creds[i].wifi_pw );
         wifiMulti.addAP(WM_config.WiFi_Creds[i].wifi_ssid, WM_config.WiFi_Creds[i].wifi_pw);
+      }
+      else
+      {
+        LOGERROR3(F("In Setup * Neglect SSID = "), WM_config.WiFi_Creds[i].wifi_ssid, F(", PW = "), WM_config.WiFi_Creds[i].wifi_pw );
+        
       }
     }
 #if USE_ESP_WIFIMANAGER_NTP      
@@ -1833,7 +1950,7 @@ uint8_t connectMultiWiFi()
   if ( (Router_SSID != "") && (Router_Pass != "") )
   {
     LOGERROR3(F("* Flash-stored Router_SSID = "), Router_SSID, F(", Router_Pass = "), Router_Pass );
-    LOGERROR3(F("* Add SSID = "), Router_SSID, F(", PW = "), Router_Pass );
+    LOGERROR3(F("In connectMultiWiFi() * Add Router-SSID = "), Router_SSID, F(", PW = "), Router_Pass );
     wifiMulti.addAP(Router_SSID.c_str(), Router_Pass.c_str());
   }
 
@@ -1844,11 +1961,20 @@ uint8_t connectMultiWiFi()
     String SSID_String = String(WM_config.WiFi_Creds[i].wifi_ssid);
     String PasswString = String(WM_config.WiFi_Creds[i].wifi_pw);
     volatile size_t PasswLength = strlen(WM_config.WiFi_Creds[i].wifi_pw);
+
     if ( (String(WM_config.WiFi_Creds[i].wifi_ssid) != "") && (strlen(WM_config.WiFi_Creds[i].wifi_pw) >= MIN_AP_PASSWORD_SIZE) )
     {
-      LOGERROR3(F("* Additional SSID = "), WM_config.WiFi_Creds[i].wifi_ssid, F(", PW = "), WM_config.WiFi_Creds[i].wifi_pw );
+      LOGERROR3(F("In connectMultiWiFi() * Add Additional SSID = "), WM_config.WiFi_Creds[i].wifi_ssid, F(", PW = "), WM_config.WiFi_Creds[i].wifi_pw );
       //RoSchmi added 20.07.2024
+      String theSSID = (char *)WM_config.WiFi_Creds[i].wifi_ssid;
       wifiMulti.addAP(WM_config.WiFi_Creds[i].wifi_ssid, WM_config.WiFi_Creds[i].wifi_pw);
+    }
+    else
+    {
+      //RoSchmi added 20.07.2024
+      String theSSID = (char *)WM_config.WiFi_Creds[i].wifi_ssid;
+      LOGERROR3(F("In connectMultiWiFi() * Additional SSID neglected = "), WM_config.WiFi_Creds[i].wifi_ssid, F(", PW = "), WM_config.WiFi_Creds[i].wifi_pw );
+  
     }
   }
 

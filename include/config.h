@@ -33,8 +33,11 @@
 #define SENDINTERVAL_MINUTES   5    // Sendinterval in minutes (10 is recommended), in this interval                                        
                                       // data are sent to the Cloud (is limited to be not below 1 second)
 
-#define SERIAL_PRINT 1                     // 1 = yes, 0 = no. Select if Serial.print messages are printed 
-                                           
+#define SERIAL_PRINT 1                     // 1 = yes, 0 = no. Select if Serial.print messages are printed
+
+#define _ESPASYNC_WIFIMGR_LOGLEVEL_  4     // ( 0 - 4) Define EspAsync_WiFiManager Loglevel (Debug Messages)
+
+#define DISPLAY_STORED_CREDENTIALS_IN_CP false  // Define if stored Router passwords are displayed                                     
 
 // Names for Tables in Azure Account, please obey rules for Azure Tablenames (e.g. no underscore allowed)
 // regular expression "^[A-Za-z][A-Za-z0-9]{2,62}$".
