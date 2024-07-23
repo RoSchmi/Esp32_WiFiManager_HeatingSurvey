@@ -659,6 +659,29 @@ void check_WiFi()
   }
 }  
 
+/*
+// From ReadMe
+void check_status(void)     
+{
+  static ulong checkwifi_timeout    = 0;
+
+  static ulong current_millis;
+
+#define WIFICHECK_INTERVAL    1000L
+
+  current_millis = millis();
+  
+  // Check WiFi every WIFICHECK_INTERVAL (1) seconds.
+  if ((current_millis > checkwifi_timeout) || (checkwifi_timeout == 0))
+  {
+    check_WiFi();
+    checkwifi_timeout = current_millis + WIFICHECK_INTERVAL;
+  }
+}
+*/
+
+// original version
+/*
 void check_status()
 {
   static ulong checkstatus_timeout  = 0;
@@ -700,6 +723,41 @@ void check_status()
     checkstatus_timeout = current_millis + HEARTBEAT_INTERVAL;
   }
 }
+*/
+
+// From example Async_ConfigOnDoubleReset_Multi.cpp
+void check_status()
+{
+  static ulong checkstatus_timeout  = 0;
+  static ulong checkwifi_timeout    = 0;
+
+  static ulong current_millis;
+
+#define WIFICHECK_INTERVAL    1000L
+
+#if USE_ESP_WIFIMANAGER_NTP
+#define HEARTBEAT_INTERVAL    60000L
+#else
+#define HEARTBEAT_INTERVAL    10000L
+#endif
+
+  current_millis = millis();
+
+  // Check WiFi every WIFICHECK_INTERVAL (1) seconds.
+  if ((current_millis > checkwifi_timeout) || (checkwifi_timeout == 0))
+  {
+    check_WiFi();
+    checkwifi_timeout = current_millis + WIFICHECK_INTERVAL;
+  }
+
+  // Print hearbeat every HEARTBEAT_INTERVAL (10) seconds.
+  if ((current_millis > checkstatus_timeout) || (checkstatus_timeout == 0))
+  {
+    heartBeatPrint();
+    checkstatus_timeout = current_millis + HEARTBEAT_INTERVAL;
+  }
+}
+
 
 int calcChecksum(uint8_t* address, uint16_t sizeToCalc)
 {
@@ -1219,35 +1277,8 @@ void setup()
                                         WM_config.WiFi_Creds[1].wifi_ssid, WM_config.WiFi_Creds[1].wifi_pw);
 #endif
 
-/*
-#if DISPLAY_STORED_CREDENTIALS_IN_CP
+
     
-    // New. Update Credentials, got from loadConfigData(), to display on CP
-    strncpy(WM_config.WiFi_Creds[0].wifi_ssid, Loaded_WM_config.WiFi_Creds[0].wifi_ssid, strlen(Loaded_WM_config.WiFi_Creds[0].wifi_ssid));
-    strncpy(WM_config.WiFi_Creds[0].wifi_pw, Loaded_WM_config.WiFi_Creds[0].wifi_pw, strlen(Loaded_WM_config.WiFi_Creds[0].wifi_pw));
-    strncpy(WM_config.WiFi_Creds[1].wifi_ssid, Loaded_WM_config.WiFi_Creds[1].wifi_ssid, strlen(Loaded_WM_config.WiFi_Creds[1].wifi_ssid));
-    strncpy(WM_config.WiFi_Creds[1].wifi_pw, Loaded_WM_config.WiFi_Creds[1].wifi_pw, strlen(Loaded_WM_config.WiFi_Creds[1].wifi_pw));  
-    Serial.println("Setting all Credentials for Captive Portal");
-    ESPAsync_wifiManager.setCredentials(WM_config.WiFi_Creds[0].wifi_ssid, WM_config.WiFi_Creds[0].wifi_pw,
-                                        WM_config.WiFi_Creds[1].wifi_ssid, WM_config.WiFi_Creds[1].wifi_pw);
-#else
-    const char emptyChar[1] {};
-    strncpy(WM_config.WiFi_Creds[0].wifi_ssid, Loaded_WM_config.WiFi_Creds[0].wifi_ssid, strlen(Loaded_WM_config.WiFi_Creds[0].wifi_ssid));
-    strncpy(WM_config.WiFi_Creds[0].wifi_pw, Loaded_WM_config.WiFi_Creds[0].wifi_pw, strlen(Loaded_WM_config.WiFi_Creds[0].wifi_pw));
-    //strncpy(WM_config.WiFi_Creds[0].wifi_pw, emptyChar, strlen(emptyChar));
-    strncpy(WM_config.WiFi_Creds[1].wifi_ssid, Loaded_WM_config.WiFi_Creds[1].wifi_ssid, strlen(Loaded_WM_config.WiFi_Creds[1].wifi_ssid));
-    strncpy(WM_config.WiFi_Creds[1].wifi_pw, Loaded_WM_config.WiFi_Creds[1].wifi_pw, strlen(Loaded_WM_config.WiFi_Creds[1].wifi_pw));  
-    //strncpy(WM_config.WiFi_Creds[1].wifi_pw, emptyChar, strlen(emptyChar));  
-    Serial.println("Setting Credentials (SSID only ) for Captive Portal");
-    ESPAsync_wifiManager.setCredentials(WM_config.WiFi_Creds[0].wifi_ssid, WM_config.WiFi_Creds[0].wifi_pw,
-                                        WM_config.WiFi_Creds[1].wifi_ssid, WM_config.WiFi_Creds[0].wifi_pw);
-#endif
-*/
-    /*
-    Serial.println("Setting Credentials for Captive Portal");
-    ESPAsync_wifiManager.setCredentials(WM_config.WiFi_Creds[0].wifi_ssid, WM_config.WiFi_Creds[0].wifi_pw,
-                                        WM_config.WiFi_Creds[1].wifi_ssid, WM_config.WiFi_Creds[1].wifi_pw);
-     */
 #if USE_ESP_WIFIMANAGER_NTP      
     if ( strlen(WM_config.TZ_Name) > 0 )
     {
@@ -1303,7 +1334,9 @@ void setup()
     
 
     if (!ESPAsync_wifiManager.startConfigPortal((const char *) ssid.c_str(), password.c_str()))
+    {
       Serial.println(F("Not connected to WiFi but continuing anyway."));
+    }
     else
     {
       Serial.println(F("WiFi connected...yeey :)"));
@@ -1412,6 +1445,8 @@ void setup()
     saveConfigData();
   }
 
+  
+  
   // Getting posted form values and overriding local variables parameters
   // Config file is written regardless the connection state 
   strcpy(azureAccountName, p_azureAccountName.getValue());
@@ -1634,7 +1669,8 @@ void setup()
 
 void loop()
 {
-  check_status();
+  check_status();   // Checks if WiFi is still connected
+                    // if not, try other Accesspoint
   // put your main code here, to run repeatedly:
   if (++loopCounter % 100000 == 0)   // Make decisions to send data every 100000 th round and toggle Led to signal that App is running
   {
@@ -1958,9 +1994,9 @@ uint8_t connectMultiWiFi()
   {
     // Don't permit NULL SSID and password len < MIN_AP_PASSWORD_SIZE (8)
     // RoSchmi added for tests
-    String SSID_String = String(WM_config.WiFi_Creds[i].wifi_ssid);
-    String PasswString = String(WM_config.WiFi_Creds[i].wifi_pw);
-    volatile size_t PasswLength = strlen(WM_config.WiFi_Creds[i].wifi_pw);
+    // String SSID_String = String(WM_config.WiFi_Creds[i].wifi_ssid);
+    // String PasswString = String(WM_config.WiFi_Creds[i].wifi_pw);
+    // volatile size_t PasswLength = strlen(WM_config.WiFi_Creds[i].wifi_pw);
 
     if ( (String(WM_config.WiFi_Creds[i].wifi_ssid) != "") && (strlen(WM_config.WiFi_Creds[i].wifi_pw) >= MIN_AP_PASSWORD_SIZE) )
     {
@@ -1976,7 +2012,8 @@ uint8_t connectMultiWiFi()
       LOGERROR3(F("In connectMultiWiFi() * Additional SSID neglected = "), WM_config.WiFi_Creds[i].wifi_ssid, F(", PW = "), WM_config.WiFi_Creds[i].wifi_pw );
   
     }
-  }
+      // RoSchmi removed curly brace in next line and added at another place
+  //  }
 
   LOGERROR(F("Connecting MultiWifi..."));
 
@@ -1988,11 +2025,11 @@ uint8_t connectMultiWiFi()
   //////
 #endif
 
-  int i = 0;
+  
   status = wifiMulti.run();
   delay(WIFI_MULTI_1ST_CONNECT_WAITING_MS);
-  
-  while ( ( i++ < 20 ) && ( status != WL_CONNECTED ) )
+  int i2 = 0;
+  while ( ( i2++ < 20 ) && ( status != WL_CONNECTED ) )
   {
     status = WiFi.status();
 
@@ -2001,7 +2038,7 @@ uint8_t connectMultiWiFi()
     else
       delay(WIFI_MULTI_CONNECT_WAITING_MS);
   }
-  
+
   if ( status == WL_CONNECTED )
   {
     LOGERROR1(F("WiFi connected after time: "), i);
@@ -2017,6 +2054,9 @@ uint8_t connectMultiWiFi()
 #else
     ESP.restart();
 #endif  
+  }
+
+  // RoSchmi added closing curly brace in next line
   }
 
   return status;
