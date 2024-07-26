@@ -1,5 +1,5 @@
 // Program 'Esp32_WiFiManager_HeatingSurvey' Branch Master
-
+#define PROGRAMVERSION "v1.2.1(b)"
 // Last updated: 2024_07_24
 // Copyright: RoSchmi 2021, 2024 License: Apache 2.0
 // the App was tested only on ESP32, not sure if it works on variations of ESP32
@@ -113,8 +113,10 @@ SET_LOOP_TASK_STACK_SIZE ( 16*1024 ); // 16KB
 uint8_t bufferStore[4000] {0};
 uint8_t * bufferStorePtr = &bufferStore[0];
 
-void * StackPtrAtStart;
-void * StackPtrEnd;
+// void * StackPtrAtStart;
+// void * StackPtrEnd;
+UBaseType_t * StackPtrAtStart;
+UBaseType_t * StackPtrEnd;
 
 UBaseType_t watermarkStart;
 TaskHandle_t taskHandle_0 =  xTaskGetCurrentTaskHandleForCPU(0);
@@ -882,8 +884,10 @@ void setup()
   // stack, heap and watchdog
 
   // Get Stackptr at start of setup()
-  void* SpStart = NULL;
-  StackPtrAtStart = (void *)&SpStart;
+  //void* SpStart = NULL;
+  UBaseType_t * SpStart = NULL;
+  //StackPtrAtStart = (void *)&SpStart;
+  StackPtrAtStart = (UBaseType_t *)&SpStart;
   
   // Get StackHighWatermark at start of setup()
   watermarkStart =  uxTaskGetStackHighWaterMark(NULL);
@@ -963,8 +967,11 @@ void setup()
     }
     ESP.restart();
   }
-  Serial.printf("Selected Microphone Type = %s\r\n", (usedMicType == MicType::SPH0645LM4H) ? "SPH0645" : "INMP441");
 
+  Serial.printf("Watchdog mode: %s\r\n", WORK_WITH_WATCHDOG == 0 ? "Disabled" : "Enabled");
+  Serial.printf("Transport Protokoll: %s\r\n", TRANSPORT_PROTOCOL == 0 ? "http" : "https");
+  Serial.printf("Selected Microphone Type = %s\r\n", (usedMicType == MicType::SPH0645LM4H) ? "SPH0645" : "INMP441");
+  
   delay(4000);
   
 
@@ -983,8 +990,11 @@ void setup()
   {
     delay(10);
   }
-
-  Serial.print(F("\nStarting Async_ConfigOnStartup using ")); Serial.print(FS_Name);
+  
+  Serial.print(F("\nStarting 'ESP32_WiFiManager_HeatingSurvey' Version "));
+  Serial.print(PROGRAMVERSION);
+  Serial.print(" using");  
+  Serial.print(FS_Name);
   Serial.print(F(" on ")); Serial.println(ARDUINO_BOARD);
   Serial.println(ESP_ASYNC_WIFIMANAGER_VERSION);
 
