@@ -29,6 +29,7 @@ class AnalogSensorMgr
     void SetReadTimeAndValues(int pSensorIndex, DateTime now, float pReadValue_1, float pReadValue_2, float pReadValue_3);
     AnalogSensor GetSensorDates(int pSensorIndex);
     
+    AnalogSensor readValues[SENSOR_COUNT];
     //float ReadSensor(int pSensorIndex);
     
     private:

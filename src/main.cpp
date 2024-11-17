@@ -1,6 +1,6 @@
 // Program 'Esp32_WiFiManager_HeatingSurvey' Branch Master
 #define PROGRAMVERSION "v1.2.1(b)"
-// Last updated: 2024_07_24
+// Last updated: 2024_11_17
 // Copyright: RoSchmi 2021, 2024 License: Apache 2.0
 // the App was tested only on ESP32, not sure if it works on variations of ESP32
 // or ESP8266

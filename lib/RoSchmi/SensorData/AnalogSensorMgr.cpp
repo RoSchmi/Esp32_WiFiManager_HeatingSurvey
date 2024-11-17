@@ -1,7 +1,7 @@
 #include "AnalogSensorMgr.h"
 
- 
- AnalogSensor readValues[SENSOR_COUNT];
+ // Bug: transferred to header file
+ // AnalogSensor readValues[SENSOR_COUNT];
  float MagicNumberInvalid = 999.9;
 
 
